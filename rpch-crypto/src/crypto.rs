@@ -1,30 +1,50 @@
 use k256::{PublicKey, SecretKey, ecdh::EphemeralSecret, EncodedPoint};
 use elliptic_curve::rand_core::OsRng;
 
-pub struct Session {
+use thiserror::Error;
 
+#[derive(Error, Debug)]
+pub enum CryptoError {
+    #[error("low level cryptographic error: {0}")]
+    CryptographicError(String),
+    #[error("not implemented")]
+    NotImplemented
+}
+
+type Result<T> = core::result::Result<T, CryptoError>;
+
+pub struct Session {
+    req_data: Option<Box<[u8]>>,
+    resp_data: Option<Box<[u8]>>,
+    client_pub: Option<PublicKey>,
+    exit_pub: Option<PublicKey>,
+    valid: bool
 }
 
 impl Session {
 
     pub fn valid(&self) -> bool {
-        false
+        self.valid
     }
 
     pub fn get_request_data(&self) -> Option<Box<[u8]>> {
-        None
+        assert!(self.valid, "session not valid");
+        self.req_data.clone()
     }
 
     pub fn get_response_data(&self) -> Option<Box<[u8]>> {
-        None
+        assert!(self.valid, "session not valid");
+        self.resp_data.clone()
     }
 
     pub fn get_client_public_key(&self) -> Option<PublicKey> {
-        None
+        assert!(self.valid, "session not valid");
+        self.client_pub.clone()
     }
 
     pub fn get_exit_node_public_key(&self) -> Option<PublicKey> {
-        None
+        assert!(self.valid, "session not valid");
+        self.exit_pub.clone()
     }
 }
 
@@ -36,12 +56,21 @@ pub struct Identity {
 
 impl Identity {
 
-    pub fn new(public_key: PublicKey, counter: Option<u64>, private_key: Option<SecretKey>) -> Identity {
-        Identity {
-            pubkey: public_key,
+    pub fn new(public_key: &[u8], counter: Option<u64>, private_key: Option<Box<[u8]>>) -> Result<Identity> {
+        let pk = PublicKey::from_sec1_bytes(public_key)
+            .map_err(|e| CryptoError::CryptographicError(e.to_string()))?;
+
+        let sk = match private_key {
+            None => None,
+            Some(k) => Some(SecretKey::from_be_bytes(k.as_ref())
+                .map_err(|e| CryptoError::CryptographicError(e.to_string()))?)
+        };
+
+        Ok(Identity {
+            pubkey: pk,
             counter,
-            secret_key: private_key
-        }
+            secret_key: sk
+        })
     }
 
     pub fn counter(&self) -> Option<u64> {
@@ -84,23 +113,23 @@ impl Envelope {
 }
 
 /// Called by the RPCh client
-pub fn box_request(request: Envelope, exit_node: &Identity) -> Result<Session, String> {
-    Err("not implemented".into())
+pub fn box_request(request: Envelope, exit_node: &Identity) -> Result<Session> {
+    Err(CryptoError::NotImplemented)
 }
 
 /// Called by the Exit node
-pub fn unbox_request(request: Envelope, my_id: &Identity) -> Result<Session, String> {
-    Err("not implemented".into())
+pub fn unbox_request(request: Envelope, my_id: &Identity) -> Result<Session> {
+    Err(CryptoError::NotImplemented)
 }
 
 /// Called by the Exit node
-pub fn box_response(session: &mut Session, response: Envelope, client: &Identity) ->  Result<(), String> {
-    Err("not implemented".into())
+pub fn box_response(session: &mut Session, response: Envelope, client: &Identity) ->  Result<()> {
+    Err(CryptoError::NotImplemented)
 }
 
 /// Called by the RPCh Client
-pub fn unbox_response(session: &mut Session, response: Envelope, my_id: &Identity) -> Result<(), String> {
-    Err("not implemented".into())
+pub fn unbox_response(session: &mut Session, response: Envelope, my_id: &Identity) -> Result<()> {
+    Err(CryptoError::NotImplemented)
 }
 
 /// Unit tests of pure Rust code
@@ -117,16 +146,13 @@ mod tests {
     #[test]
     fn test_request() {
 
-        let sk = NonZeroScalar::random(&mut OsRng);
-        let pk = PublicKey::from_secret_scalar(&sk);
+        let our_sk = NonZeroScalar::random(&mut OsRng);
+        let our_pk = PublicKey::from_secret_scalar(&our_sk);
 
-        let hex_sk = hex::encode(sk.to_bytes().as_slice());
-        let hex_pk = hex::encode(EncodedPoint::from(pk).as_bytes());
+        let exit_sk = NonZeroScalar::random(&mut OsRng);
+        let exit_pk = PublicKey::from_secret_scalar(&exit_sk);
 
-        let our_key = EphemeralSecret::random(&mut OsRng);
-        let exit_node_key = EphemeralSecret::random(&mut OsRng);
 
-        //let exit_node_id = Identity::new(EXIT_NODE, 0, )
 
     }
 
@@ -155,20 +181,27 @@ pub mod wasm {
             self.w.valid()
         }
 
-        pub fn get_request_data(&self) -> Option<Box<[u8]>> {
+        pub fn get_request_data(&self) -> Result<Box<[u8]>, JsValue> {
             self.w.get_request_data()
+                .ok_or("no request data".into())
         }
 
-        pub fn get_response_data(&self) -> Option<Box<[u8]>> {
+        pub fn get_response_data(&self) -> Result<Box<[u8]>, JsValue> {
             self.w.get_response_data()
+                .ok_or("no response data".into())
         }
 
-        pub fn get_client_public_key(&self) -> Option<Box<[u8]>> {
-            self.w.get_client_public_key().map(|k| Box::from(EncodedPoint::from(k).as_bytes()))
+        pub fn get_client_public_key(&self) -> Result<Box<[u8]>, JsValue> {
+            self.w.get_client_public_key()
+                .map(|k| Box::from(EncodedPoint::from(k).as_bytes()))
+                .ok_or("no client public key".into())
         }
 
-        pub fn get_exit_node_public_key(&self) -> Option<Box<[u8]>> {
-            self.w.get_exit_node_public_key().map(|k| Box::from(EncodedPoint::from(k).as_bytes()))
+        pub fn get_exit_node_public_key(&self) -> Result<Box<[u8]>, JsValue> {
+            self.w.get_exit_node_public_key()
+                .map(|k| Box::from(EncodedPoint::from(k).as_bytes()))
+                .ok_or("no exit node public key".into())
+
         }
     }
 
@@ -179,21 +212,15 @@ pub mod wasm {
 
     #[wasm_bindgen]
     impl Identity {
-        pub fn load_identity(public_key: Box<[u8]>, private_key: Option<Box<[u8]>>, counter: Option<u64>) -> Result<Identity, JsValue> {
-            let private = match private_key {
-                Some(k) => Some(SecretKey::from_be_bytes(k.as_ref()).map_err(as_jsvalue)?),
-                None => None
-            };
-
+        pub fn load_identity(public_key: &[u8], private_key: Option<Box<[u8]>>, counter: Option<u64>) -> Result<Identity, JsValue> {
             Ok(Identity {
-                w: super::Identity::new(PublicKey::from_sec1_bytes(public_key.as_ref()).map_err(as_jsvalue)?,
-                                        counter,
-                                        private)
+                w: super::Identity::new(public_key, counter, private_key).map_err(as_jsvalue)?
             })
         }
 
-        pub fn counter(&self) -> Option<u64> {
+        pub fn counter(&self) -> Result<u64, JsValue> {
             self.w.counter()
+                .ok_or("identity does not have a counter".into())
         }
     }
 

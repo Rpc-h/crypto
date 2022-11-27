@@ -11,7 +11,7 @@ extern crate core;
 
 use rpch_crypto::crypto::wasm::*;
 
-// wasm_bindgen_test_configure!(run_in_browser);
+wasm_bindgen_test_configure!(run_in_browser);
 
 const RPCH_CLIENT_PRIV_KEY: &str = "da168e73ebf1de84410cf94dfacf589dfcf90f343c32ce36550e688165a7f3f7";
 const RPCH_CLIENT_PUB_KEY: &str = "02ae28530d283ac87f5585be918badd16ac98f4141c8566c2619b5f40fb366bc63";
@@ -34,7 +34,7 @@ fn test_whole_flow() {
     {
         // RPCh Client loads the identity of the selected Exit node
         let exit_node_pk = hex::decode(EXIT_NODE_PUB_KEY).unwrap();
-        let exit_node_id = Identity::load_identity(exit_node_pk.into_boxed_slice(), None, Some(0))
+        let exit_node_id = Identity::load_identity(exit_node_pk.as_slice(), None, Some(0))
             .expect("client identity load failed");
 
 
@@ -54,7 +54,7 @@ fn test_whole_flow() {
         // Exit node loads its own identity
         let exit_pk = hex::decode(RPCH_CLIENT_PUB_KEY).unwrap();
         let exit_sk = hex::decode(RPCH_CLIENT_PRIV_KEY).unwrap();
-        let exit_id = Identity::load_identity(exit_pk.into_boxed_slice(), Some(exit_sk.into_boxed_slice()), None)
+        let exit_id = Identity::load_identity(exit_pk.as_slice(), Some(exit_sk.into_boxed_slice()), None)
             .expect("exit node identity load failed");
 
         // Exit node receives the Request data and constructs an Envelope
@@ -69,7 +69,7 @@ fn test_whole_flow() {
 
         // Load identity of the RPCh Client based on the public key from the Session.
         let client_pub = session.get_client_public_key().expect("failed to retrieve client pub key from session");
-        let client_id = Identity::load_identity(client_pub, None, Some(0))
+        let client_id = Identity::load_identity(client_pub.as_ref(), None, Some(0))
             .expect("failed to load client identity");
 
         // Construct the Response
@@ -88,7 +88,7 @@ fn test_whole_flow() {
         // RPCh client loads its own identity
         let client_pk = hex::decode(RPCH_CLIENT_PUB_KEY).unwrap();
         let client_sk = hex::decode(RPCH_CLIENT_PRIV_KEY).unwrap();
-        let client_id = Identity::load_identity(client_pk.into_boxed_slice(), Some(client_sk.into_boxed_slice()), None)
+        let client_id = Identity::load_identity(client_pk.as_slice(), Some(client_sk.into_boxed_slice()), None)
             .expect("failed to load client id");
 
         unbox_response(&mut client_session, Envelope::new(data_on_wire.as_ref(), ENTRY_NODE_PEER_ID, EXIT_NODE_PEER_ID), &client_id)
