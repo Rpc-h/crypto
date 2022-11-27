@@ -4,14 +4,14 @@ use elliptic_curve::rand_core::OsRng;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum CryptoError {
+pub enum RpchCryptoError {
     #[error("low level cryptographic error: {0}")]
     CryptographicError(String),
     #[error("not implemented")]
     NotImplemented
 }
 
-type Result<T> = core::result::Result<T, CryptoError>;
+type Result<T> = core::result::Result<T, RpchCryptoError>;
 
 pub struct Session {
     req_data: Option<Box<[u8]>>,
@@ -58,12 +58,12 @@ impl Identity {
 
     pub fn new(public_key: &[u8], counter: Option<u64>, private_key: Option<Box<[u8]>>) -> Result<Identity> {
         let pk = PublicKey::from_sec1_bytes(public_key)
-            .map_err(|e| CryptoError::CryptographicError(e.to_string()))?;
+            .map_err(|e| RpchCryptoError::CryptographicError(e.to_string()))?;
 
         let sk = match private_key {
             None => None,
             Some(k) => Some(SecretKey::from_be_bytes(k.as_ref())
-                .map_err(|e| CryptoError::CryptographicError(e.to_string()))?)
+                .map_err(|e| RpchCryptoError::CryptographicError(e.to_string()))?)
         };
 
         Ok(Identity {
@@ -114,22 +114,22 @@ impl Envelope {
 
 /// Called by the RPCh client
 pub fn box_request(request: Envelope, exit_node: &Identity) -> Result<Session> {
-    Err(CryptoError::NotImplemented)
+    Err(RpchCryptoError::NotImplemented)
 }
 
 /// Called by the Exit node
 pub fn unbox_request(request: Envelope, my_id: &Identity) -> Result<Session> {
-    Err(CryptoError::NotImplemented)
+    Err(RpchCryptoError::NotImplemented)
 }
 
 /// Called by the Exit node
 pub fn box_response(session: &mut Session, response: Envelope, client: &Identity) ->  Result<()> {
-    Err(CryptoError::NotImplemented)
+    Err(RpchCryptoError::NotImplemented)
 }
 
 /// Called by the RPCh Client
 pub fn unbox_response(session: &mut Session, response: Envelope, my_id: &Identity) -> Result<()> {
-    Err(CryptoError::NotImplemented)
+    Err(RpchCryptoError::NotImplemented)
 }
 
 /// Unit tests of pure Rust code
@@ -153,7 +153,7 @@ mod tests {
         let exit_pk = PublicKey::from_secret_scalar(&exit_sk);
 
 
-
+        // TODO: Add more unit tests
     }
 
 }
