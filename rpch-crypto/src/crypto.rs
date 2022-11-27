@@ -11,33 +11,45 @@ impl Session {
         false
     }
 
-    pub fn get_data(&self) -> Option<Box<[u8]>> {
+    pub fn get_request_data(&self) -> Option<Box<[u8]>> {
+        None
+    }
+
+    pub fn get_response_data(&self) -> Option<Box<[u8]>> {
+        None
+    }
+
+    pub fn get_client_public_key(&self) -> Option<PublicKey> {
+        None
+    }
+
+    pub fn get_exit_node_public_key(&self) -> Option<PublicKey> {
         None
     }
 }
 
 pub struct Identity {
-    counter: u64,
     pubkey: PublicKey,
+    counter: Option<u64>,
     secret_key: Option<SecretKey>
 }
 
 impl Identity {
 
-    pub fn new(counter: u64, public_key: PublicKey, private_key: Option<SecretKey>) -> Identity {
+    pub fn new(public_key: PublicKey, counter: Option<u64>, private_key: Option<SecretKey>) -> Identity {
         Identity {
-            counter,
             pubkey: public_key,
+            counter,
             secret_key: private_key
         }
     }
 
-    pub fn counter(&self) -> u64 {
+    pub fn counter(&self) -> Option<u64> {
         self.counter
     }
 
     fn increment(&mut self) {
-        self.counter = self.counter+1
+        self.counter = self.counter.map(|x| x+1)
     }
 }
 
@@ -72,22 +84,22 @@ impl Envelope {
 }
 
 /// Called by the RPCh client
-pub fn box_request(request: &Envelope, exit_node: &Identity) -> Result<Session, String> {
+pub fn box_request(request: Envelope, exit_node: &Identity) -> Result<Session, String> {
     Err("not implemented".into())
 }
 
 /// Called by the Exit node
-pub fn unbox_request(request: &Envelope, my_id: &Identity) -> Result<Session, String> {
+pub fn unbox_request(request: Envelope, my_id: &Identity) -> Result<Session, String> {
     Err("not implemented".into())
 }
 
 /// Called by the Exit node
-pub fn box_response(session: &Session, response: &Envelope, client: &Identity) ->  Result<Session, String> {
+pub fn box_response(session: &mut Session, response: Envelope, client: &Identity) ->  Result<(), String> {
     Err("not implemented".into())
 }
 
 /// Called by the RPCh Client
-pub fn unbox_response(session: &Session, response: &Envelope, my_id: &Identity) -> Result<Session, String> {
+pub fn unbox_response(session: &mut Session, response: Envelope, my_id: &Identity) -> Result<(), String> {
     Err("not implemented".into())
 }
 
@@ -97,13 +109,19 @@ mod tests {
     use elliptic_curve::rand_core::OsRng;
     use super::*;
 
-    use k256::{PublicKey, SecretKey};
+    use k256::{NonZeroScalar, PublicKey, SecretKey};
 
     const EXIT_NODE: &str = "16Uiu2HAmUsJwbECMroQUC29LQZZWsYpYZx1oaM1H9DBoZHLkYn12";
     const ENTRY_NODE: &str = "16Uiu2HAm35DuQk2Cvp9aLpRTD43ZubLqtbAwf242w2YmAe8FskLs";
 
     #[test]
     fn test_request() {
+
+        let sk = NonZeroScalar::random(&mut OsRng);
+        let pk = PublicKey::from_secret_scalar(&sk);
+
+        let hex_sk = hex::encode(sk.to_bytes().as_slice());
+        let hex_pk = hex::encode(EncodedPoint::from(pk).as_bytes());
 
         let our_key = EphemeralSecret::random(&mut OsRng);
         let exit_node_key = EphemeralSecret::random(&mut OsRng);
@@ -117,7 +135,7 @@ mod tests {
 /// Module for WASM wrappers of Rust code
 pub mod wasm {
     use std::fmt::Display;
-    use k256::{PublicKey, SecretKey};
+    use k256::{EncodedPoint, PublicKey, SecretKey};
     use k256::Secp256k1;
     use wasm_bindgen::prelude::*;
 
@@ -137,8 +155,20 @@ pub mod wasm {
             self.w.valid()
         }
 
-        pub fn get_data(&self) -> Option<Box<[u8]>> {
-            self.w.get_data()
+        pub fn get_request_data(&self) -> Option<Box<[u8]>> {
+            self.w.get_request_data()
+        }
+
+        pub fn get_response_data(&self) -> Option<Box<[u8]>> {
+            self.w.get_response_data()
+        }
+
+        pub fn get_client_public_key(&self) -> Option<Box<[u8]>> {
+            self.w.get_client_public_key().map(|k| Box::from(EncodedPoint::from(k).as_bytes()))
+        }
+
+        pub fn get_exit_node_public_key(&self) -> Option<Box<[u8]>> {
+            self.w.get_exit_node_public_key().map(|k| Box::from(EncodedPoint::from(k).as_bytes()))
         }
     }
 
@@ -149,20 +179,20 @@ pub mod wasm {
 
     #[wasm_bindgen]
     impl Identity {
-        pub fn load_identity(peer_id: &str, counter: u64, public_key: Box<[u8]>, private_key: Option<Box<[u8]>>) -> Result<Identity, JsValue> {
+        pub fn load_identity(public_key: Box<[u8]>, private_key: Option<Box<[u8]>>, counter: Option<u64>) -> Result<Identity, JsValue> {
             let private = match private_key {
                 Some(k) => Some(SecretKey::from_be_bytes(k.as_ref()).map_err(as_jsvalue)?),
                 None => None
             };
 
             Ok(Identity {
-                w: super::Identity::new(counter,
-                                        PublicKey::from_sec1_bytes(public_key.as_ref()).map_err(as_jsvalue)?,
+                w: super::Identity::new(PublicKey::from_sec1_bytes(public_key.as_ref()).map_err(as_jsvalue)?,
+                                        counter,
                                         private)
             })
         }
 
-        pub fn counter(&self) -> u64 {
+        pub fn counter(&self) -> Option<u64> {
             self.w.counter()
         }
     }
@@ -184,30 +214,28 @@ pub mod wasm {
     }
 
     #[wasm_bindgen]
-    pub fn box_request(request: &Envelope, exit_peer: &Identity) -> Result<Session, JsValue> {
-        super::box_request(&request.w, &exit_peer.w)
+    pub fn box_request(request: Envelope, exit_node: &Identity) -> Result<Session, JsValue> {
+        super::box_request(request.w, &exit_node.w)
             .map(|s| Session { w: s })
             .map_err(as_jsvalue)
     }
 
     #[wasm_bindgen]
-    pub fn unbox_request(message: &Envelope, my_id: &Identity) -> Result<Session, JsValue> {
-        super::unbox_request(&message.w, &my_id.w)
+    pub fn unbox_request(message: Envelope, my_id: &Identity) -> Result<Session, JsValue> {
+        super::unbox_request(message.w, &my_id.w)
             .map(|s| Session { w: s })
             .map_err(as_jsvalue)
     }
 
     #[wasm_bindgen]
-    pub fn box_response(session: &Session, response: &Envelope, entry_peer: &Identity) ->  Result<Session, JsValue> {
-        super::box_response(&session.w, &response.w, &entry_peer.w)
-            .map(|s| Session { w: s })
+    pub fn box_response(session: &mut Session, response: Envelope, client: &Identity) ->  Result<(), JsValue> {
+        super::box_response(&mut session.w, response.w, &client.w)
             .map_err(as_jsvalue)
     }
 
     #[wasm_bindgen]
-    pub fn unbox_response(session: &Session, message: &Envelope, my_id: &Identity) -> Result<Session, JsValue> {
-        super::unbox_response(&session.w, &message.w, &my_id.w)
-            .map(|s| Session { w: s })
+    pub fn unbox_response(session: &mut Session, message: Envelope, my_id: &Identity) -> Result<(), JsValue> {
+        super::unbox_response(&mut session.w, message.w, &my_id.w)
             .map_err(as_jsvalue)
     }
 }
