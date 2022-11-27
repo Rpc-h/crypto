@@ -39,10 +39,6 @@ impl Identity {
     fn increment(&mut self) {
         self.counter = self.counter+1
     }
-
-    pub fn peer_id(&self) -> &str {
-        self.peer_id.as_str()
-    }
 }
 
 pub struct Envelope {
@@ -54,8 +50,25 @@ pub struct Envelope {
 impl Envelope {
 
     pub fn new(message: &[u8], entry_peer_id: &str, exit_peer_id: &str) -> Envelope {
-
+        Envelope {
+            message: message.into(),
+            entry_peer_id: entry_peer_id.into(),
+            exit_peer_id: exit_peer_id.into()
+        }
     }
+
+    pub fn entry_peer_id(&self) -> &str {
+        self.entry_peer_id.as_str()
+    }
+
+    pub fn exit_peer_id(&self) -> &str {
+        self.exit_peer_id.as_str()
+    }
+
+    pub fn message(&self) -> &[u8] {
+        self.message.as_ref()
+    }
+
 }
 
 /// Called by the RPCh client
@@ -95,7 +108,7 @@ mod tests {
         let our_key = EphemeralSecret::random(&mut OsRng);
         let exit_node_key = EphemeralSecret::random(&mut OsRng);
 
-        let exit_node_id = Identity::new(EXIT_NODE, 0, )
+        //let exit_node_id = Identity::new(EXIT_NODE, 0, )
 
     }
 
@@ -143,7 +156,7 @@ pub mod wasm {
             };
 
             Ok(Identity {
-                w: super::Identity::new(peer_id, counter,
+                w: super::Identity::new(counter,
                                         PublicKey::from_sec1_bytes(public_key.as_ref()).map_err(as_jsvalue)?,
                                         private)
             })
@@ -152,36 +165,48 @@ pub mod wasm {
         pub fn counter(&self) -> u64 {
             self.w.counter()
         }
+    }
 
-        pub fn peer_id(&self) -> String {
-            self.w.peer_id().to_string()
+    #[wasm_bindgen]
+    pub struct Envelope {
+        w: super::Envelope
+    }
+
+    #[wasm_bindgen]
+    impl Envelope {
+
+        #[wasm_bindgen(constructor)]
+        pub fn new(message: &[u8], entry_peer_id: &str, exit_peer_id: &str) -> Envelope {
+            Envelope {
+                w: super::Envelope::new(message, entry_peer_id, exit_peer_id)
+            }
         }
     }
 
     #[wasm_bindgen]
-    pub fn box_request(request: &[u8], exit_peer: &Identity) -> Result<Session, JsValue> {
-        super::box_request(request, &exit_peer.w)
+    pub fn box_request(request: &Envelope, exit_peer: &Identity) -> Result<Session, JsValue> {
+        super::box_request(&request.w, &exit_peer.w)
             .map(|s| Session { w: s })
             .map_err(as_jsvalue)
     }
 
     #[wasm_bindgen]
-    pub fn unbox_request(message: &[u8], my_id: &Identity) -> Result<Session, JsValue> {
-        super::unbox_request(message, &my_id.w)
+    pub fn unbox_request(message: &Envelope, my_id: &Identity) -> Result<Session, JsValue> {
+        super::unbox_request(&message.w, &my_id.w)
             .map(|s| Session { w: s })
             .map_err(as_jsvalue)
     }
 
     #[wasm_bindgen]
-    pub fn box_response(session: &Session, response: &[u8], entry_peer: &Identity) ->  Result<Session, JsValue> {
-        super::box_response(&session.w, response, &entry_peer.w)
+    pub fn box_response(session: &Session, response: &Envelope, entry_peer: &Identity) ->  Result<Session, JsValue> {
+        super::box_response(&session.w, &response.w, &entry_peer.w)
             .map(|s| Session { w: s })
             .map_err(as_jsvalue)
     }
 
     #[wasm_bindgen]
-    pub fn unbox_response(session: &Session, message: &[u8], my_id: &Identity) -> Result<Session, JsValue> {
-        super::unbox_response(&session.w, message, &my_id.w)
+    pub fn unbox_response(session: &Session, message: &Envelope, my_id: &Identity) -> Result<Session, JsValue> {
+        super::unbox_response(&session.w, &message.w, &my_id.w)
             .map(|s| Session { w: s })
             .map_err(as_jsvalue)
     }
