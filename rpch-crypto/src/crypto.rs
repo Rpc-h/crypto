@@ -154,14 +154,33 @@ mod tests {
     #[test]
     fn test_request() {
 
-        let our_sk = NonZeroScalar::random(&mut OsRng);
-        let our_pk = PublicKey::from_secret_scalar(&our_sk);
-
         let exit_sk = NonZeroScalar::random(&mut OsRng);
+        let exit_sk_bytes = exit_sk.to_bytes();
         let exit_pk = PublicKey::from_secret_scalar(&exit_sk);
 
+        let exit_id = Identity::new(EncodedPoint::from(exit_pk).as_bytes(), Some(0), None)
+            .expect("failed to create exit node identity");
 
-        // TODO: Add more unit tests
+        let request_data = "Hello world!";
+
+        let request_session = box_request(Envelope::new(request_data.as_bytes(), ENTRY_NODE, EXIT_NODE), &exit_id)
+            .expect("failed to box request");
+
+        assert!(request_session.valid(), "request session not valid");
+
+        let data_on_wire = request_session.get_request_data().expect("no request data");
+
+        let exit_own_id = Identity::new(EncodedPoint::from(exit_pk).as_bytes(), None,Some(exit_sk_bytes.as_slice().into()))
+            .expect("failed to own exit node identity");
+
+        let response_session = unbox_request(Envelope::new(data_on_wire.as_ref(), ENTRY_NODE, EXIT_NODE), &exit_own_id)
+            .expect("failed to unbox request");
+
+        assert!(response_session.valid());
+
+        let retrieved_data = response_session.get_response_data().expect("no response data");
+
+        assert_eq!(request_data.as_bytes(), retrieved_data.as_ref());
     }
 
 }
