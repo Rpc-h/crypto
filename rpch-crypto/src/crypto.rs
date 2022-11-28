@@ -18,6 +18,8 @@ pub struct Session {
     resp_data: Option<Box<[u8]>>,
     client_pub: Option<PublicKey>,
     exit_pub: Option<PublicKey>,
+    req_counter: u64,
+    resp_counter: u64,
     valid: bool
 }
 
@@ -46,6 +48,16 @@ impl Session {
         assert!(self.valid, "session not valid");
         self.exit_pub.clone()
     }
+
+    pub fn get_client_node_counter(&self) -> u64 {
+        assert!(self.valid, "session not valid");
+        self.req_counter
+    }
+
+    pub fn get_exit_node_counter(&self) -> u64 {
+        assert!(self.valid, "session not valid");
+        self.resp_counter
+    }
 }
 
 pub struct Identity {
@@ -73,12 +85,8 @@ impl Identity {
         })
     }
 
-    pub fn counter(&self) -> Option<u64> {
+    fn counter(&self) -> Option<u64> {
         self.counter
-    }
-
-    fn increment(&mut self) {
-        self.counter = self.counter.map(|x| x+1)
     }
 }
 
@@ -203,6 +211,14 @@ pub mod wasm {
                 .ok_or("no exit node public key".into())
 
         }
+
+        pub fn get_client_node_counter(&self) -> u64 {
+            self.w.get_client_node_counter()
+        }
+
+        pub fn get_exit_node_counter(&self) -> u64 {
+            self.w.get_exit_node_counter()
+        }
     }
 
     #[wasm_bindgen]
@@ -216,11 +232,6 @@ pub mod wasm {
             Ok(Identity {
                 w: super::Identity::new(public_key, counter, private_key).map_err(as_jsvalue)?
             })
-        }
-
-        pub fn counter(&self) -> Result<u64, JsValue> {
-            self.w.counter()
-                .ok_or("identity does not have a counter".into())
         }
     }
 
