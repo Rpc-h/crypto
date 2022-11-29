@@ -143,10 +143,14 @@ pub fn unbox_response(session: &mut Session, response: Envelope, my_id: &Identit
 /// Unit tests of pure Rust code
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
     use elliptic_curve::rand_core::OsRng;
     use super::*;
 
     use k256::{NonZeroScalar, PublicKey, SecretKey};
+
+    const EXIT_NODE_SK: &str = "06EF2A621EB9DF81F7D6A8F7A2499B9E670613F757648DC3258640767EBD7E0A";
+    const CLIENT_NODE_SK: &str = "C68A46C26A26E3D96CE2B02D2E0B90D3AC53374A6783D19D5114B9D1C0DF97DD";
 
     const EXIT_NODE: &str = "16Uiu2HAmUsJwbECMroQUC29LQZZWsYpYZx1oaM1H9DBoZHLkYn12";
     const ENTRY_NODE: &str = "16Uiu2HAm35DuQk2Cvp9aLpRTD43ZubLqtbAwf242w2YmAe8FskLs";
@@ -154,9 +158,10 @@ mod tests {
     #[test]
     fn test_request() {
 
-        let exit_sk = NonZeroScalar::random(&mut OsRng);
+        let exit_sk = NonZeroScalar::from_str(EXIT_NODE_SK).unwrap();
         let exit_sk_bytes = exit_sk.to_bytes();
         let exit_pk = PublicKey::from_secret_scalar(&exit_sk);
+
 
         let exit_id = Identity::new(EncodedPoint::from(exit_pk).as_bytes(), Some(0), None)
             .expect("failed to create exit node identity");
@@ -181,6 +186,58 @@ mod tests {
         let retrieved_data = response_session.get_response_data().expect("no response data");
 
         assert_eq!(request_data.as_bytes(), retrieved_data.as_ref());
+    }
+
+    #[test]
+    fn test_response() {
+        let client_sk = NonZeroScalar::from_str(CLIENT_NODE_SK).unwrap();
+        let client_sk_bytes = client_sk.to_bytes();
+        let client_pk = PublicKey::from_secret_scalar(&client_sk);
+
+
+        let client_id = Identity::new(EncodedPoint::from(client_pk).as_bytes(), Some(0), None)
+            .expect("failed to create client node identity");
+
+        let response_data = "Hello from Infura!";
+
+        let mut mock_exit_session = Session {
+            req_data: None,
+            resp_data: None,
+            client_pub: None,
+            exit_pub: None,
+            req_counter: 1,
+            resp_counter: 0,
+            valid: true
+        };
+
+        box_response(&mut mock_exit_session, Envelope::new(response_data.as_bytes(), ENTRY_NODE, EXIT_NODE), &client_id)
+            .expect("failed to box response");
+
+        assert!(mock_exit_session.valid());
+
+        let data_on_wire = mock_exit_session.get_response_data().expect("failed to get response data");
+
+        let client_own_id = Identity::new(EncodedPoint::from(client_pk).as_bytes(), None, Some(client_sk_bytes.as_slice().into()))
+            .expect("failed to create client own id");
+
+        let mut mock_client_session = Session {
+            req_data: None,
+            resp_data: None,
+            client_pub: None,
+            exit_pub: None,
+            req_counter: 1,
+            resp_counter: 0,
+            valid: true
+        };
+
+        unbox_response(&mut mock_client_session, Envelope::new(data_on_wire.as_ref(), ENTRY_NODE, EXIT_NODE), &client_own_id)
+            .expect("failed to unbox response");
+
+        assert!(mock_client_session.valid());
+
+        let unboxed_response = mock_client_session.get_response_data().expect("failed to obtain response data");
+
+        assert_eq!(response_data.as_bytes(), unboxed_response.as_ref());
     }
 
 }
