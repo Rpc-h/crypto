@@ -2,7 +2,7 @@ use blake2::Blake2s256;
 use chacha20poly1305::{ChaCha20Poly1305, KeyInit, Nonce};
 use chacha20poly1305::aead::Aead;
 use elliptic_curve::ecdh::diffie_hellman;
-use k256::{PublicKey, SecretKey, ecdh::EphemeralSecret, EncodedPoint};
+use k256::{PublicKey, SecretKey, ecdh::EphemeralSecret, EncodedPoint, Secp256k1};
 use elliptic_curve::rand_core::OsRng;
 use k256::ecdh::SharedSecret;
 
@@ -17,6 +17,8 @@ const CIPHER_IVSIZE: usize = 12;
 
 #[derive(Error, Debug)]
 pub enum RpchCryptoError {
+    #[error("session is invalid")]
+    InvalidSession,
     #[error("message verification failed")]
     VerificationFailed,
     #[error("private key is missing in the used identity")]
@@ -40,6 +42,7 @@ pub struct Session {
     resp_data: Option<Box<[u8]>>,
     client_counter: u64,
     exit_counter: u64,
+    shared_presecret: Option<SharedSecret>
 }
 
 impl Session {
@@ -123,18 +126,20 @@ impl Envelope {
 
 const REQUEST_TAG: &str = "req";
 
-fn initialize_cipher(shared_presecret: SharedSecret, counter: u64, salt: &[u8]) -> Result<(ChaCha20Poly1305, Vec<u8>)> {
+fn initialize_cipher(shared_presecret: &SharedSecret, counter: u64, salt: &[u8], start_index: usize) -> Result<(ChaCha20Poly1305, Vec<u8>)> {
     let kdf = shared_presecret.extract::<Blake2s256>(Some(salt));
 
-    // Generate the encryption key using the KDF
     let mut key = [0u8; CIPHER_KEYSIZE];
-    kdf.expand(&[0u8; 1], &mut key)
-        .map_err(|e| RpchCryptoError::CryptographicError(e.to_string()))?;
-
-    // Generate the first part of the IV from shared pre-secret
     let mut ivm = [0u8; CIPHER_IVSIZE - COUNTER_SIZE];
-    kdf.expand(&[0u8; 1], &mut ivm)
-        .map_err(|e| RpchCryptoError::CryptographicError(e.to_string()))?;
+    for _ in 0..start_index+1 {
+        // Generate the encryption key using the KDF
+        kdf.expand(&[0u8; 1], &mut key)
+            .map_err(|e| RpchCryptoError::CryptographicError(e.to_string()))?;
+
+        // Generate the first part of the IV from shared pre-secret
+        kdf.expand(&[0u8; 1], &mut ivm)
+            .map_err(|e| RpchCryptoError::CryptographicError(e.to_string()))?;
+    }
 
     // Construct the final IV using the generated prefix and the new counter
     let mut iv = Vec::from(ivm);
@@ -161,7 +166,7 @@ pub fn box_request(request: Envelope, exit_node: &Identity) -> Result<Session> {
     let mut salt = vec![RPCH_CRYPTO_VERSION];
     salt.extend_from_slice(request.exit_peer_id.as_bytes());
     salt.extend_from_slice(REQUEST_TAG.as_bytes());
-    let (cipher, iv) = initialize_cipher(shared_presecret, new_counter, salt.as_slice())?;
+    let (cipher, iv) = initialize_cipher(&shared_presecret, new_counter, salt.as_slice(), 0)?;
 
     // Encrypt and authenticate the request
     let cipher_text = cipher.encrypt(Nonce::from_slice(iv.as_slice()), request.message.as_ref())
@@ -177,7 +182,8 @@ pub fn box_request(request: Envelope, exit_node: &Identity) -> Result<Session> {
         req_data: Some(result.into_boxed_slice()),
         resp_data: None,
         client_counter: new_counter,
-        exit_counter: 0
+        exit_counter: 0,
+        shared_presecret: Some(shared_presecret)
     })
 }
 
@@ -190,7 +196,7 @@ pub fn unbox_request(request: Envelope, my_id: &Identity, client: &Identity) -> 
     }
 
     let ephemeral_pk = PublicKey::from_sec1_bytes(&message[1..PUBLIC_KEYSIZE_ENCODED+1])
-        .map_err(|e|RpchCryptoError::MessageParseError)?;
+        .map_err(|_| RpchCryptoError::MessageParseError)?;
 
     let private_key = my_id.secret_key.as_ref()
         .ok_or(RpchCryptoError::MissingIdentityKey)?;
@@ -205,8 +211,9 @@ pub fn unbox_request(request: Envelope, my_id: &Identity, client: &Identity) -> 
     let mut salt = vec![RPCH_CRYPTO_VERSION];
     salt.extend_from_slice(request.exit_peer_id.as_bytes());
     salt.extend_from_slice(REQUEST_TAG.as_bytes());
-    let (cipher,iv  ) = initialize_cipher(shared_presecret, counter, salt.as_slice())?;
+    let (cipher, iv ) = initialize_cipher(&shared_presecret, counter, salt.as_slice(), 0)?;
 
+    // Decrypt the response
     let plain_text = cipher.decrypt(Nonce::from_slice(iv.as_slice()), &message[1+PUBLIC_KEYSIZE_ENCODED+COUNTER_SIZE..])
         .map_err(|e| RpchCryptoError::CryptographicError(e.to_string()))?;
 
@@ -218,19 +225,69 @@ pub fn unbox_request(request: Envelope, my_id: &Identity, client: &Identity) -> 
         req_data: None,
         resp_data: Some(plain_text.into_boxed_slice()),
         client_counter: counter,
-        exit_counter: 0
+        exit_counter: 0,
+        shared_presecret: Some(shared_presecret)
     })
 
 }
 
+const RESPONSE_TAG: &str = "resp";
+
 /// Called by the Exit node
 pub fn box_response(session: &mut Session, response: Envelope, client: &Identity) ->  Result<()> {
-    Err(RpchCryptoError::NotImplemented)
+    let shared_presecret = session.shared_presecret.as_ref().ok_or(RpchCryptoError::InvalidSession)?;
+
+    // Obtain the exit node counter value and increase it by 1
+    let new_counter = client.counter().ok_or(RpchCryptoError::InvalidCounter)? + 1;
+
+    // Create the salt for the request and initialize the cipher
+    let mut salt = vec![RPCH_CRYPTO_VERSION];
+    salt.extend_from_slice(response.entry_peer_id.as_bytes());
+    salt.extend_from_slice(RESPONSE_TAG.as_bytes());
+    let (cipher, iv) = initialize_cipher(&shared_presecret, new_counter, salt.as_slice(), 1)?;
+
+    // Encrypt and authenticate the request
+    let cipher_text = cipher.encrypt(Nonce::from_slice(iv.as_slice()), response.message.as_ref())
+        .map_err(|e| RpchCryptoError::CryptographicError(e.to_string()))?;
+
+    // Construct the result
+    let mut result: Vec<u8> = Vec::new();
+    result.extend_from_slice(&new_counter.to_be_bytes()); // C
+    result.extend(cipher_text.iter()); // R,T
+
+    session.resp_data = Some(result.into_boxed_slice());
+    session.exit_counter = new_counter;
+
+    Ok(())
 }
 
 /// Called by the RPCh Client
 pub fn unbox_response(session: &mut Session, response: Envelope, my_id: &Identity, exit_node: &Identity) -> Result<()> {
-    Err(RpchCryptoError::NotImplemented)
+    let message = response.message();
+
+    let shared_presecret = session.shared_presecret.as_ref().ok_or(RpchCryptoError::InvalidSession)?;
+
+    let mut counter_bytes = [0u8; COUNTER_SIZE];
+    counter_bytes.copy_from_slice(&message[0..COUNTER_SIZE]);
+    let counter = u64::from_be_bytes(counter_bytes);
+
+    // Create the salt for the request and initialize the cipher
+    let mut salt = vec![RPCH_CRYPTO_VERSION];
+    salt.extend_from_slice(response.exit_peer_id.as_bytes());
+    salt.extend_from_slice(REQUEST_TAG.as_bytes());
+    let (cipher, iv ) = initialize_cipher(shared_presecret, counter, salt.as_slice(), 1)?;
+
+    // Decrypt the response
+    let plain_text = cipher.decrypt(Nonce::from_slice(iv.as_slice()), &message[COUNTER_SIZE..])
+        .map_err(|e| RpchCryptoError::CryptographicError(e.to_string()))?;
+
+    if counter <= exit_node.counter().ok_or(RpchCryptoError::InvalidCounter)? {
+        return Err(RpchCryptoError::VerificationFailed)
+    }
+
+    session.resp_data = Some(plain_text.into_boxed_slice());
+
+    Ok(())
 }
 
 /// Unit tests of pure Rust code
@@ -280,12 +337,11 @@ mod tests {
 
         let retrieved_data = response_session.get_response_data().expect("no response data");
 
-
         let response_str = String::from_utf8(retrieved_data.into_vec()).expect("failed to decode response string");
         assert_eq!(request_data, response_str);
     }
 
-    //#[test]
+    #[test]
     fn test_response() {
         let client_sk = NonZeroScalar::from_str(CLIENT_NODE_SK).unwrap();
         let client_sk_bytes = client_sk.to_bytes();

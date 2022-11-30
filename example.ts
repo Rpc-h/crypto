@@ -49,6 +49,14 @@ try { // anything can throw
 	
 	let my_exit_node_id = Identity::load_identity(exit_node_public_key, exit_node_private_key); // NOTE we're not loading any counter here
 
+
+	// We also need to retrieve the public key and counter of the RPCh Client from the DB
+	let client_node_public_key = ...; // Uint8Array
+	let client_node_counter = 10n; // it's a bigint
+
+	let client_id = Identity::load_identity(client_node_public_key, undefined, client_node_counter);
+
+
 	// Boxed request data we retrieved via HOPR network
 	let boxed_request_data = ... ; // Uint8Array
 
@@ -56,42 +64,29 @@ try { // anything can throw
 	let entry_node_peer_id = "16Uiu..."; 
 	let our_exit_node_peer_id = "16Uiu2...";
 
-	let session = unbox_request(new Envelope(boxed_request_data, entry_node_peer_id, our_exit_node_peer_id), my_exit_node_id);
+	let session = unbox_request(new Envelope(boxed_request_data, entry_node_peer_id, our_exit_node_peer_id), my_exit_node_id, client_id);
 
-	if (session.valid()) {
-		let unboxed_request = session.get_request_data(); // It's an Uint8Array
+	let unboxed_request = session.get_request_data(); // It's an Uint8Array
 		
-		// IMPORTANT: Update the counter in the DB (along with the Client identity)
-		let save_me = session.get_client_node_counter()
+	// IMPORTANT: Update the counter in the DB (along with the Client identity)
+	let save_me = session.get_client_node_counter()
 
-		// Now send that to Infura or whatever RPC provider!
-	}
-	else throw Error("invalid session!")
-
+	// Now send that to Infura or whatever RPC provider!
+	
 
 	// So we got a response back from Infura or some RPC provider
 	let rpc_response = ... ; // As Uint8Array
 
 
-	// We need to retrieve the public key and counter of the RPCh Client from the DB
-	let client_node_public_key = ...; // Uint8Array
-	let client_node_counter = 10n; // it's a bigint
-
-	let client_id = Identity::load_identity(client_node_public_key, undefined, client_node_counter);
-
-
 	box_response(session, new Envelope(rpc_response, entry_node_peer_id, our_exit_node_peer_id), client_id);
 
-	if (session.valid())
-	{
-		let boxed_response = session.get_response_data(); // It's an Uint8Array
-		// Now send that back the the RPCh client via HOPR network!
+	let boxed_response = session.get_response_data(); // It's an Uint8Array
+	// Now send that back the the RPCh client via HOPR network!
 
 
-		// IMPORTANT: Update the counter in the DB (along with the Client identity)
-		let save_me = session.get_client_node_counter()
-	}
-	else throw Error("invalid session!")
+	// IMPORTANT: Update the counter in the DB (along with the Client identity)
+	let save_me = session.get_client_node_counter()
+	
 
 }
 catch {
@@ -116,18 +111,15 @@ try { // again, anything can throw
 
 	// Remember we also got the "client_session" Session object
 
-	unbox_response(client_session, new Envelope(boxed_rpc_response, entry_node_peer_id, exit_node_peer_id), our_id);
+	unbox_response(client_session, new Envelope(boxed_rpc_response, entry_node_peer_id, exit_node_peer_id), our_id, exit_node_id);
 
-	if (client_session.valid()) 
-	{
-		let unboxed_rpc_response = session.get_response_data()
-		// Now present this back to the Wallet!
+	
+	let unboxed_rpc_response = session.get_response_data()
+	// Now present this back to the Wallet!
 
 
-		// IMPORTANT: Update the counter in the DB (along with the Exit node identity)
-		let save_me = session.get_exit_node_counter()
-	}
-	else throw Error("invalid session!")
+	// IMPORTANT: Update the counter in the DB (along with the Exit node identity)
+	let save_me = session.get_exit_node_counter()
 
 }
 catch {
