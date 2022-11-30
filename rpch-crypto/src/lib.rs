@@ -1,3 +1,5 @@
+extern crate core;
+
 use wasm_bindgen::prelude::*;
 
 pub mod crypto;
