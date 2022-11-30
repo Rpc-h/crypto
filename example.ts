@@ -24,14 +24,13 @@ try { // NOTE that function below can throw!
 	// We need to save the "client_session" Session object for later to process the response as well
 	let client_session = box_request(new Envelope(request_data, entry_node_peer_id, exit_node_peer_id), exit_node_id);
 
-	if (client_session.valid()) {
-		let boxed_request = client_session.get_request_data() // this is an Uint8Array with encrypted data that will be sent to the Entry node
-		// ... send to the Entry node!
+	
+	let boxed_request = client_session.get_request_data() // this is an Uint8Array with encrypted data that will be sent to the Entry node
+	// ... send to the Entry node!
 
-		// IMPORTANT: Update the counter in the DB (along with the Exit node identity)
-		let save_me = session.get_exit_node_counter()
-	}
-	else throw Error("invalid session!")
+	// IMPORTANT: Update the counter in the DB (along with the Exit node identity)
+	let save_me = session.get_exit_node_counter()
+	
 }
 catch {
 	...

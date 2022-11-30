@@ -351,6 +351,8 @@ mod tests {
         let exit_sk_bytes = exit_sk.to_bytes();
         let exit_pk = PublicKey::from_secret_scalar(&exit_sk);
 
+        let ss = EphemeralSecret::random(&mut OsRng);
+
         let client_id = Identity::new(EncodedPoint::from(client_pk).as_bytes(), Some(0), None)
             .expect("failed to create client node identity");
 
@@ -364,7 +366,8 @@ mod tests {
             req_data: None,
             resp_data: None,
             client_counter: 1,
-            exit_counter: 0
+            exit_counter: 0,
+            shared_presecret: Some(ss.diffie_hellman(&exit_pk))
         };
 
         box_response(&mut mock_exit_session, Envelope::new(response_data.as_bytes(), ENTRY_NODE, EXIT_NODE), &client_id)
@@ -379,7 +382,8 @@ mod tests {
             req_data: None,
             resp_data: None,
             client_counter: 1,
-            exit_counter: 0
+            exit_counter: 0,
+            shared_presecret: Some(ss.diffie_hellman(&exit_pk))
         };
 
         unbox_response(&mut mock_client_session, Envelope::new(data_on_wire.as_ref(), ENTRY_NODE, EXIT_NODE), &client_own_id, &exit_id)
