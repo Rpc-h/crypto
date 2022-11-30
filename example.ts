@@ -110,7 +110,7 @@ try { // again, anything can throw
 
 	// Remember we also got the "client_session" Session object
 
-	unbox_response(client_session, new Envelope(boxed_rpc_response, entry_node_peer_id, exit_node_peer_id), our_id, exit_node_id);
+	unbox_response(client_session, new Envelope(boxed_rpc_response, entry_node_peer_id, exit_node_peer_id), exit_node_id);
 
 	
 	let unboxed_rpc_response = session.get_response_data()

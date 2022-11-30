@@ -2,7 +2,7 @@ use blake2::Blake2s256;
 use chacha20poly1305::{ChaCha20Poly1305, KeyInit, Nonce};
 use chacha20poly1305::aead::Aead;
 use elliptic_curve::ecdh::diffie_hellman;
-use k256::{PublicKey, SecretKey, ecdh::EphemeralSecret, EncodedPoint, Secp256k1};
+use k256::{PublicKey, SecretKey, ecdh::EphemeralSecret, EncodedPoint};
 use elliptic_curve::rand_core::OsRng;
 use k256::ecdh::SharedSecret;
 
@@ -262,7 +262,7 @@ pub fn box_response(session: &mut Session, response: Envelope, client: &Identity
 }
 
 /// Called by the RPCh Client
-pub fn unbox_response(session: &mut Session, response: Envelope, my_id: &Identity, exit_node: &Identity) -> Result<()> {
+pub fn unbox_response(session: &mut Session, response: Envelope, exit_node: &Identity) -> Result<()> {
     let message = response.message();
 
     let shared_presecret = session.shared_presecret.as_ref().ok_or(RpchCryptoError::InvalidSession)?;
@@ -312,9 +312,7 @@ mod tests {
         let exit_pk = PublicKey::from_secret_scalar(&exit_sk);
 
         let client_sk = NonZeroScalar::from_str(CLIENT_NODE_SK).unwrap();
-        let client_sk_bytes = client_sk.to_bytes();
         let client_pk = PublicKey::from_secret_scalar(&client_sk);
-
 
         let client_id = Identity::new(EncodedPoint::from(client_pk).as_bytes(), Some(0), None)
             .expect("failed to create client node identity");
@@ -344,11 +342,9 @@ mod tests {
     #[test]
     fn test_response() {
         let client_sk = NonZeroScalar::from_str(CLIENT_NODE_SK).unwrap();
-        let client_sk_bytes = client_sk.to_bytes();
         let client_pk = PublicKey::from_secret_scalar(&client_sk);
 
         let exit_sk = NonZeroScalar::from_str(EXIT_NODE_SK).unwrap();
-        let exit_sk_bytes = exit_sk.to_bytes();
         let exit_pk = PublicKey::from_secret_scalar(&exit_sk);
 
         let ss = EphemeralSecret::random(&mut OsRng);
@@ -375,9 +371,6 @@ mod tests {
 
         let data_on_wire = mock_exit_session.get_response_data().expect("failed to get response data");
 
-        let client_own_id = Identity::new(EncodedPoint::from(client_pk).as_bytes(), None, Some(client_sk_bytes.as_slice().into()))
-            .expect("failed to create client own id");
-
         let mut mock_client_session = Session {
             req_data: None,
             resp_data: None,
@@ -386,7 +379,7 @@ mod tests {
             shared_presecret: Some(ss.diffie_hellman(&exit_pk))
         };
 
-        unbox_response(&mut mock_client_session, Envelope::new(data_on_wire.as_ref(), ENTRY_NODE, EXIT_NODE), &client_own_id, &exit_id)
+        unbox_response(&mut mock_client_session, Envelope::new(data_on_wire.as_ref(), ENTRY_NODE, EXIT_NODE),&exit_id)
             .expect("failed to unbox response");
 
         let unboxed_response = mock_client_session.get_response_data().expect("failed to obtain response data");
@@ -483,8 +476,8 @@ pub mod wasm {
     }
 
     #[wasm_bindgen]
-    pub fn unbox_response(session: &mut Session, message: Envelope, my_id: &Identity, exit_node: &Identity) -> Result<(), JsValue> {
-        super::unbox_response(&mut session.w, message.w, &my_id.w, &exit_node.w)
+    pub fn unbox_response(session: &mut Session, message: Envelope, exit_node: &Identity) -> Result<(), JsValue> {
+        super::unbox_response(&mut session.w, message.w,&exit_node.w)
             .map_err(as_jsvalue)
     }
 }
