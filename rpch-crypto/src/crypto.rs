@@ -273,8 +273,8 @@ pub fn unbox_response(session: &mut Session, response: Envelope, my_id: &Identit
 
     // Create the salt for the request and initialize the cipher
     let mut salt = vec![RPCH_CRYPTO_VERSION];
-    salt.extend_from_slice(response.exit_peer_id.as_bytes());
-    salt.extend_from_slice(REQUEST_TAG.as_bytes());
+    salt.extend_from_slice(response.entry_peer_id.as_bytes());
+    salt.extend_from_slice(RESPONSE_TAG.as_bytes());
     let (cipher, iv ) = initialize_cipher(shared_presecret, counter, salt.as_slice(), 1)?;
 
     // Decrypt the response
