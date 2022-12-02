@@ -188,7 +188,7 @@ pub fn box_request(request: Envelope, exit_node: &Identity) -> Result<Session> {
 }
 
 /// Called by the Exit node
-pub fn unbox_request(request: Envelope, my_id: &Identity, client: &Identity) -> Result<Session> {
+pub fn unbox_request(request: Envelope, my_id: &Identity, client_counter: u64) -> Result<Session> {
     let message = request.message();
 
     if message[0]&0x10 != RPCH_CRYPTO_VERSION&0x10 {
@@ -217,7 +217,7 @@ pub fn unbox_request(request: Envelope, my_id: &Identity, client: &Identity) -> 
     let plain_text = cipher.decrypt(Nonce::from_slice(iv.as_slice()), &message[1+PUBLIC_KEYSIZE_ENCODED+COUNTER_SIZE..])
         .map_err(|e| RpchCryptoError::CryptographicError(e.to_string()))?;
 
-    if counter <= client.counter().ok_or(RpchCryptoError::InvalidCounter)? {
+    if counter <= client_counter {
         return Err(RpchCryptoError::VerificationFailed)
     }
 
@@ -234,11 +234,11 @@ pub fn unbox_request(request: Envelope, my_id: &Identity, client: &Identity) -> 
 const RESPONSE_TAG: &str = "resp";
 
 /// Called by the Exit node
-pub fn box_response(session: &mut Session, response: Envelope, client: &Identity) ->  Result<()> {
+pub fn box_response(session: &mut Session, response: Envelope, client_counter: u64) ->  Result<()> {
     let shared_presecret = session.shared_presecret.as_ref().ok_or(RpchCryptoError::InvalidSession)?;
 
     // Obtain the exit node counter value and increase it by 1
-    let new_counter = client.counter().ok_or(RpchCryptoError::InvalidCounter)? + 1;
+    let new_counter = client_counter + 1;
 
     // Create the salt for the request and initialize the cipher
     let mut salt = vec![RPCH_CRYPTO_VERSION];
@@ -311,12 +311,6 @@ mod tests {
         let exit_sk_bytes = exit_sk.to_bytes();
         let exit_pk = PublicKey::from_secret_scalar(&exit_sk);
 
-        let client_sk = NonZeroScalar::from_str(CLIENT_NODE_SK).unwrap();
-        let client_pk = PublicKey::from_secret_scalar(&client_sk);
-
-        let client_id = Identity::new(EncodedPoint::from(client_pk).as_bytes(), Some(0), None)
-            .expect("failed to create client node identity");
-
         let exit_id = Identity::new(EncodedPoint::from(exit_pk).as_bytes(), Some(0), None)
             .expect("failed to create exit node identity");
 
@@ -330,13 +324,14 @@ mod tests {
         let exit_own_id = Identity::new(EncodedPoint::from(exit_pk).as_bytes(), None,Some(exit_sk_bytes.as_slice().into()))
             .expect("failed to own exit node identity");
 
-        let response_session = unbox_request(Envelope::new(data_on_wire.as_ref(), ENTRY_NODE, EXIT_NODE), &exit_own_id, &client_id)
+        let response_session = unbox_request(Envelope::new(data_on_wire.as_ref(), ENTRY_NODE, EXIT_NODE), &exit_own_id, 0)
             .expect("failed to unbox request");
 
         let retrieved_data = response_session.get_response_data().expect("no response data");
 
         let response_str = String::from_utf8(retrieved_data.into_vec()).expect("failed to decode response string");
         assert_eq!(request_data, response_str);
+        assert_eq!(1, response_session.get_client_node_counter())
     }
 
     #[test]
@@ -366,7 +361,7 @@ mod tests {
             shared_presecret: Some(ss.diffie_hellman(&exit_pk))
         };
 
-        box_response(&mut mock_exit_session, Envelope::new(response_data.as_bytes(), ENTRY_NODE, EXIT_NODE), &client_id)
+        box_response(&mut mock_exit_session, Envelope::new(response_data.as_bytes(), ENTRY_NODE, EXIT_NODE), )
             .expect("failed to box response");
 
         let data_on_wire = mock_exit_session.get_response_data().expect("failed to get response data");
@@ -463,15 +458,15 @@ pub mod wasm {
     }
 
     #[wasm_bindgen]
-    pub fn unbox_request(message: Envelope, my_id: &Identity, client: &Identity) -> Result<Session, JsValue> {
-        super::unbox_request(message.w, &my_id.w, &client.w)
+    pub fn unbox_request(message: Envelope, my_id: &Identity, client_counter: u64) -> Result<Session, JsValue> {
+        super::unbox_request(message.w, &my_id.w, client_counter)
             .map(|s| Session { w: s })
             .map_err(as_jsvalue)
     }
 
     #[wasm_bindgen]
-    pub fn box_response(session: &mut Session, response: Envelope, client: &Identity) ->  Result<(), JsValue> {
-        super::box_response(&mut session.w, response.w, &client.w)
+    pub fn box_response(session: &mut Session, response: Envelope, client_counter: u64) ->  Result<(), JsValue> {
+        super::box_response(&mut session.w, response.w, client_counter)
             .map_err(as_jsvalue)
     }
 

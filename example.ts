@@ -50,10 +50,7 @@ try { // anything can throw
 
 
 	// We also need to retrieve the public key and counter of the RPCh Client from the DB
-	let client_node_public_key = ...; // Uint8Array
 	let client_node_counter = 10n; // it's a bigint
-
-	let client_id = Identity::load_identity(client_node_public_key, undefined, client_node_counter);
 
 
 	// Boxed request data we retrieved via HOPR network
@@ -63,7 +60,7 @@ try { // anything can throw
 	let entry_node_peer_id = "16Uiu..."; 
 	let our_exit_node_peer_id = "16Uiu2...";
 
-	let session = unbox_request(new Envelope(boxed_request_data, entry_node_peer_id, our_exit_node_peer_id), my_exit_node_id, client_id);
+	let session = unbox_request(new Envelope(boxed_request_data, entry_node_peer_id, our_exit_node_peer_id), my_exit_node_id, client_node_counter);
 
 	let unboxed_request = session.get_request_data(); // It's an Uint8Array
 		

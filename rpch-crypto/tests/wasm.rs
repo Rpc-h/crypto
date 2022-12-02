@@ -58,13 +58,9 @@ fn test_whole_flow() {
         let exit_id = Identity::load_identity(exit_pk.as_slice(), Some(exit_sk.into_boxed_slice()), None)
             .expect("exit node identity load failed");
 
-        // Load identity of the RPCh Client based on the public key from the Session.
-        let client_pk = hex::decode(RPCH_CLIENT_PUB_KEY).unwrap();
-        let client_id = Identity::load_identity(&client_pk, None, Some(0))
-            .expect("failed to load client identity");
-
         // Exit node receives the Request data and constructs an Envelope
-        let mut session = unbox_request(Envelope::new(data_on_wire.as_ref(), ENTRY_NODE_PEER_ID, EXIT_NODE_PEER_ID), &exit_id, &client_id)
+        let client_counter = 0;
+        let mut session = unbox_request(Envelope::new(data_on_wire.as_ref(), ENTRY_NODE_PEER_ID, EXIT_NODE_PEER_ID), &exit_id, client_counter)
             .expect("request unboxing failed");
 
         // The Exit node must update the client's counter value in a DB
