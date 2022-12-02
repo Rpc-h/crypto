@@ -327,8 +327,8 @@ mod tests {
 
         let retrieved_data = response_session.get_request_data().expect("no response data");
 
-        let response_str = String::from_utf8(retrieved_data.into_vec()).expect("failed to decode response string");
-        assert_eq!(request_data, response_str);
+        let request_str = String::from_utf8(retrieved_data.into_vec()).expect("failed to decode response string");
+        assert_eq!(request_data, request_str);
         assert_eq!(1, response_session.get_counter());
     }
 

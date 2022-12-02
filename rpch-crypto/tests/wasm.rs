@@ -65,7 +65,8 @@ fn test_whole_flow() {
 
         // Now the Exit node performs the request to the Final RPC provider
         let request_data = session.get_request_data().expect("failed to retrieve request data on exit node");
-        assert_eq!(REQUEST_DATA.as_bytes(), request_data.as_ref(), "message not correct");
+        let request_str = String::from_utf8(request_data.into_vec()).expect("failed to decode response string");
+        assert_eq!(REQUEST_DATA, request_str, "message not correct");
 
         // Construct the Response
         box_response(&mut session, Envelope::new(RESPONSE_DATA.as_bytes(), ENTRY_NODE_PEER_ID, EXIT_NODE_PEER_ID))
@@ -85,7 +86,9 @@ fn test_whole_flow() {
 
         // Retrieve the response data
         let response_data = client_session.get_response_data().expect("failed to retrieve response data");
-        assert_eq!(RESPONSE_DATA.as_bytes(), response_data.as_ref());
+        let response_str = String::from_utf8(response_data.into_vec()).expect("failed to decode response string");
+
+        assert_eq!(RESPONSE_DATA, response_str, "message not correct");
 
         // Now the RPCh Client must update the counter
         assert_eq!(2,  client_session.get_counter());
