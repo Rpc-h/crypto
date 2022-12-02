@@ -1,5 +1,6 @@
-# Template for custom Rust WASM module
+# rpch-crypt
 
-This is a starter template for Rust WASM module that uses `wasm-bindgen`.
+This crate implements the RPCh Crypto protocol as defined by the specs in the parent repository.
+The implementation is WASM compatible and also exposes a TypeScript API via `wasm-bindgen`.
 
 
