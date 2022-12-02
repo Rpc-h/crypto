@@ -15,6 +15,8 @@ const COUNTER_SIZE: usize = 8;
 const CIPHER_KEYSIZE: usize = 32;
 const CIPHER_IVSIZE: usize = 12;
 
+const COUNTER_GRACE_AMOUNT: u64 = 0;
+
 #[derive(Error, Debug)]
 pub enum RpchCryptoError {
     #[error("session is invalid")]
@@ -40,8 +42,7 @@ type Result<T> = core::result::Result<T, RpchCryptoError>;
 pub struct Session {
     req_data: Option<Box<[u8]>>,
     resp_data: Option<Box<[u8]>>,
-    client_counter: u64,
-    exit_counter: u64,
+    counter: u64,
     shared_presecret: Option<SharedSecret>
 }
 
@@ -55,12 +56,8 @@ impl Session {
         self.resp_data.clone()
     }
 
-    pub fn get_client_node_counter(&self) -> u64 {
-        self.client_counter
-    }
-
-    pub fn get_exit_node_counter(&self) -> u64 {
-        self.exit_counter
+    pub fn get_counter(&self) -> u64 {
+        self.counter
     }
 }
 
@@ -181,8 +178,7 @@ pub fn box_request(request: Envelope, exit_node: &Identity) -> Result<Session> {
     Ok(Session {
         req_data: Some(result.into_boxed_slice()),
         resp_data: None,
-        client_counter: new_counter,
-        exit_counter: 0,
+        counter: new_counter,
         shared_presecret: Some(shared_presecret)
     })
 }
@@ -217,15 +213,14 @@ pub fn unbox_request(request: Envelope, my_id: &Identity, client_counter: u64) -
     let plain_text = cipher.decrypt(Nonce::from_slice(iv.as_slice()), &message[1+PUBLIC_KEYSIZE_ENCODED+COUNTER_SIZE..])
         .map_err(|e| RpchCryptoError::CryptographicError(e.to_string()))?;
 
-    if counter <= client_counter {
+    if counter+COUNTER_GRACE_AMOUNT <= client_counter {
         return Err(RpchCryptoError::VerificationFailed)
     }
 
     Ok(Session {
-        req_data: None,
-        resp_data: Some(plain_text.into_boxed_slice()),
-        client_counter: counter,
-        exit_counter: 0,
+        req_data: Some(plain_text.into_boxed_slice()),
+        resp_data: None,
+        counter,
         shared_presecret: Some(shared_presecret)
     })
 
@@ -234,11 +229,11 @@ pub fn unbox_request(request: Envelope, my_id: &Identity, client_counter: u64) -
 const RESPONSE_TAG: &str = "resp";
 
 /// Called by the Exit node
-pub fn box_response(session: &mut Session, response: Envelope, client_counter: u64) ->  Result<()> {
+pub fn box_response(session: &mut Session, response: Envelope) ->  Result<()> {
     let shared_presecret = session.shared_presecret.as_ref().ok_or(RpchCryptoError::InvalidSession)?;
 
     // Obtain the exit node counter value and increase it by 1
-    let new_counter = client_counter + 1;
+    let new_counter = session.get_counter() + 1;
 
     // Create the salt for the request and initialize the cipher
     let mut salt = vec![RPCH_CRYPTO_VERSION];
@@ -256,16 +251,17 @@ pub fn box_response(session: &mut Session, response: Envelope, client_counter: u
     result.extend(cipher_text.iter()); // R,T
 
     session.resp_data = Some(result.into_boxed_slice());
-    session.exit_counter = new_counter;
+    session.counter = new_counter;
+    session.shared_presecret = None; // Invalidate the session
 
     Ok(())
 }
 
 /// Called by the RPCh Client
-pub fn unbox_response(session: &mut Session, response: Envelope, exit_node: &Identity) -> Result<()> {
-    let message = response.message();
-
+pub fn unbox_response(session: &mut Session, response: Envelope) -> Result<()> {
     let shared_presecret = session.shared_presecret.as_ref().ok_or(RpchCryptoError::InvalidSession)?;
+
+    let message = response.message();
 
     let mut counter_bytes = [0u8; COUNTER_SIZE];
     counter_bytes.copy_from_slice(&message[0..COUNTER_SIZE]);
@@ -281,11 +277,13 @@ pub fn unbox_response(session: &mut Session, response: Envelope, exit_node: &Ide
     let plain_text = cipher.decrypt(Nonce::from_slice(iv.as_slice()), &message[COUNTER_SIZE..])
         .map_err(|e| RpchCryptoError::CryptographicError(e.to_string()))?;
 
-    if counter <= exit_node.counter().ok_or(RpchCryptoError::InvalidCounter)? {
+    if counter+COUNTER_GRACE_AMOUNT <= session.get_counter() {
         return Err(RpchCryptoError::VerificationFailed)
     }
 
     session.resp_data = Some(plain_text.into_boxed_slice());
+    session.counter = counter;
+    session.shared_presecret = None; // Invalidate session
 
     Ok(())
 }
@@ -299,7 +297,6 @@ mod tests {
     use k256::{NonZeroScalar, PublicKey};
 
     const EXIT_NODE_SK: &str = "06EF2A621EB9DF81F7D6A8F7A2499B9E670613F757648DC3258640767EBD7E0A";
-    const CLIENT_NODE_SK: &str = "C68A46C26A26E3D96CE2B02D2E0B90D3AC53374A6783D19D5114B9D1C0DF97DD";
 
     const EXIT_NODE: &str = "16Uiu2HAmUsJwbECMroQUC29LQZZWsYpYZx1oaM1H9DBoZHLkYn12";
     const ENTRY_NODE: &str = "16Uiu2HAm35DuQk2Cvp9aLpRTD43ZubLqtbAwf242w2YmAe8FskLs";
@@ -320,6 +317,7 @@ mod tests {
             .expect("failed to box request");
 
         let data_on_wire = request_session.get_request_data().expect("no request data");
+        assert_eq!(1, request_session.get_counter());
 
         let exit_own_id = Identity::new(EncodedPoint::from(exit_pk).as_bytes(), None,Some(exit_sk_bytes.as_slice().into()))
             .expect("failed to own exit node identity");
@@ -327,59 +325,49 @@ mod tests {
         let response_session = unbox_request(Envelope::new(data_on_wire.as_ref(), ENTRY_NODE, EXIT_NODE), &exit_own_id, 0)
             .expect("failed to unbox request");
 
-        let retrieved_data = response_session.get_response_data().expect("no response data");
+        let retrieved_data = response_session.get_request_data().expect("no response data");
 
         let response_str = String::from_utf8(retrieved_data.into_vec()).expect("failed to decode response string");
         assert_eq!(request_data, response_str);
-        assert_eq!(1, response_session.get_client_node_counter())
+        assert_eq!(1, response_session.get_counter());
     }
 
     #[test]
     fn test_response() {
-        let client_sk = NonZeroScalar::from_str(CLIENT_NODE_SK).unwrap();
-        let client_pk = PublicKey::from_secret_scalar(&client_sk);
-
         let exit_sk = NonZeroScalar::from_str(EXIT_NODE_SK).unwrap();
         let exit_pk = PublicKey::from_secret_scalar(&exit_sk);
 
         let ss = EphemeralSecret::random(&mut OsRng);
-
-        let client_id = Identity::new(EncodedPoint::from(client_pk).as_bytes(), Some(0), None)
-            .expect("failed to create client node identity");
-
-
-        let exit_id = Identity::new(EncodedPoint::from(exit_pk).as_bytes(), Some(0), None)
-            .expect("failed to create exit node identity");
 
         let response_data = "Hello from Infura!";
 
         let mut mock_exit_session = Session {
             req_data: None,
             resp_data: None,
-            client_counter: 1,
-            exit_counter: 0,
+            counter: 1,
             shared_presecret: Some(ss.diffie_hellman(&exit_pk))
         };
 
-        box_response(&mut mock_exit_session, Envelope::new(response_data.as_bytes(), ENTRY_NODE, EXIT_NODE), )
+        box_response(&mut mock_exit_session, Envelope::new(response_data.as_bytes(), ENTRY_NODE, EXIT_NODE))
             .expect("failed to box response");
 
         let data_on_wire = mock_exit_session.get_response_data().expect("failed to get response data");
+        assert_eq!(2, mock_exit_session.get_counter());
 
         let mut mock_client_session = Session {
             req_data: None,
             resp_data: None,
-            client_counter: 1,
-            exit_counter: 0,
+            counter: 1,
             shared_presecret: Some(ss.diffie_hellman(&exit_pk))
         };
 
-        unbox_response(&mut mock_client_session, Envelope::new(data_on_wire.as_ref(), ENTRY_NODE, EXIT_NODE),&exit_id)
+        unbox_response(&mut mock_client_session, Envelope::new(data_on_wire.as_ref(), ENTRY_NODE, EXIT_NODE))
             .expect("failed to unbox response");
 
         let unboxed_response = mock_client_session.get_response_data().expect("failed to obtain response data");
 
         assert_eq!(response_data.as_bytes(), unboxed_response.as_ref());
+        assert_eq!(2, mock_client_session.get_counter())
     }
 
 }
@@ -411,12 +399,8 @@ pub mod wasm {
                 .ok_or("no response data".into())
         }
 
-        pub fn get_client_node_counter(&self) -> u64 {
-            self.w.get_client_node_counter()
-        }
-
-        pub fn get_exit_node_counter(&self) -> u64 {
-            self.w.get_exit_node_counter()
+        pub fn get_counter(&self) -> u64 {
+            self.w.get_counter()
         }
     }
 
@@ -465,14 +449,14 @@ pub mod wasm {
     }
 
     #[wasm_bindgen]
-    pub fn box_response(session: &mut Session, response: Envelope, client_counter: u64) ->  Result<(), JsValue> {
-        super::box_response(&mut session.w, response.w, client_counter)
+    pub fn box_response(session: &mut Session, response: Envelope) ->  Result<(), JsValue> {
+        super::box_response(&mut session.w, response.w)
             .map_err(as_jsvalue)
     }
 
     #[wasm_bindgen]
-    pub fn unbox_response(session: &mut Session, message: Envelope, exit_node: &Identity) -> Result<(), JsValue> {
-        super::unbox_response(&mut session.w, message.w,&exit_node.w)
+    pub fn unbox_response(session: &mut Session, message: Envelope) -> Result<(), JsValue> {
+        super::unbox_response(&mut session.w, message.w)
             .map_err(as_jsvalue)
     }
 }

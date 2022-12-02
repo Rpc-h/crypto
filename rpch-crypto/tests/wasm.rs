@@ -13,9 +13,6 @@ use rpch_crypto::crypto::wasm::*;
 
 //wasm_bindgen_test_configure!(run_in_browser);
 
-//const RPCH_CLIENT_PRIV_KEY: &str = "da168e73ebf1de84410cf94dfacf589dfcf90f343c32ce36550e688165a7f3f7";
-const RPCH_CLIENT_PUB_KEY: &str = "02ae28530d283ac87f5585be918badd16ac98f4141c8566c2619b5f40fb366bc63";
-
 const EXIT_NODE_PRIV_KEY: &str = "9724e2860178e062b9f1e7252de004b22a40cd4069f704604efef4fe0105c7da";
 const EXIT_NODE_PUB_KEY: &str = "03dd289a45ca51763044917d9e49051548e75b1405fc9740623e20e11d4784c531";
 
@@ -43,7 +40,7 @@ fn test_whole_flow() {
             .expect("failed to create client session");
 
         // Now the RPCh Client must update the counter
-        assert_eq!(1,  client_session.get_client_node_counter());
+        assert_eq!(1,  client_session.get_counter());
 
         // session.get_request_data() is sent to the Exit node via HOPR network
         data_on_wire = client_session.get_request_data().expect("failed to retrieve request data for sending")
@@ -64,18 +61,18 @@ fn test_whole_flow() {
             .expect("request unboxing failed");
 
         // The Exit node must update the client's counter value in a DB
-        assert_eq!(1, session.get_exit_node_counter());
+        assert_eq!(1, session.get_counter());
 
         // Now the Exit node performs the request to the Final RPC provider
         let request_data = session.get_request_data().expect("failed to retrieve request data on exit node");
         assert_eq!(REQUEST_DATA.as_bytes(), request_data.as_ref(), "message not correct");
 
         // Construct the Response
-        box_response(&mut session, Envelope::new(RESPONSE_DATA.as_bytes(), ENTRY_NODE_PEER_ID, EXIT_NODE_PEER_ID), &client_id)
+        box_response(&mut session, Envelope::new(RESPONSE_DATA.as_bytes(), ENTRY_NODE_PEER_ID, EXIT_NODE_PEER_ID))
             .expect("failed to create response");
 
         // The Exit node must update the client's counter value in a DB
-        assert_eq!(2, session.get_exit_node_counter());
+        assert_eq!(2, session.get_counter());
 
         data_on_wire = session.get_response_data().expect("failed to retrieve response data")
     }
@@ -83,7 +80,7 @@ fn test_whole_flow() {
     // --- on RPCh Client ---
 
     {
-        unbox_response(&mut client_session, Envelope::new(data_on_wire.as_ref(), ENTRY_NODE_PEER_ID, EXIT_NODE_PEER_ID), &exit_node_id)
+        unbox_response(&mut client_session, Envelope::new(data_on_wire.as_ref(), ENTRY_NODE_PEER_ID, EXIT_NODE_PEER_ID))
             .expect("response unboxing failed");
 
         // Retrieve the response data
@@ -91,6 +88,6 @@ fn test_whole_flow() {
         assert_eq!(RESPONSE_DATA.as_bytes(), response_data.as_ref());
 
         // Now the RPCh Client must update the counter
-        assert_eq!(2,  client_session.get_client_node_counter());
+        assert_eq!(2,  client_session.get_counter());
     }
 }
