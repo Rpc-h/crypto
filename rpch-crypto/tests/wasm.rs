@@ -40,7 +40,7 @@ fn test_whole_flow() {
             .expect("failed to create client session");
 
         // Now the RPCh Client must update the counter
-        assert_eq!(1,  client_session.get_counter());
+        assert_eq!(1,  client_session.counter());
 
         // session.get_request_data() is sent to the Exit node via HOPR network
         data_on_wire = client_session.get_request_data().expect("failed to retrieve request data for sending")
@@ -61,7 +61,7 @@ fn test_whole_flow() {
             .expect("request unboxing failed");
 
         // The Exit node must update the client's counter value in a DB
-        assert_eq!(1, session.get_counter());
+        assert_eq!(1, session.counter());
 
         // Now the Exit node performs the request to the Final RPC provider
         let request_data = session.get_request_data().expect("failed to retrieve request data on exit node");
@@ -73,7 +73,7 @@ fn test_whole_flow() {
             .expect("failed to create response");
 
         // The Exit node must update the client's counter value in a DB
-        assert_eq!(2, session.get_counter());
+        assert_eq!(2, session.counter());
 
         data_on_wire = session.get_response_data().expect("failed to retrieve response data")
     }
@@ -91,6 +91,6 @@ fn test_whole_flow() {
         assert_eq!(RESPONSE_DATA, response_str, "message not correct");
 
         // Now the RPCh Client must update the counter
-        assert_eq!(2,  client_session.get_counter());
+        assert_eq!(2,  client_session.counter());
     }
 }

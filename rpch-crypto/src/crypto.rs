@@ -56,7 +56,7 @@ impl Session {
         self.resp_data.clone()
     }
 
-    pub fn get_counter(&self) -> u64 {
+    pub fn counter(&self) -> u64 {
         self.counter
     }
 }
@@ -233,7 +233,7 @@ pub fn box_response(session: &mut Session, response: Envelope) ->  Result<()> {
     let shared_presecret = session.shared_presecret.as_ref().ok_or(RpchCryptoError::InvalidSession)?;
 
     // Obtain the exit node counter value and increase it by 1
-    let new_counter = session.get_counter() + 1;
+    let new_counter = session.counter() + 1;
 
     // Create the salt for the request and initialize the cipher
     let mut salt = vec![RPCH_CRYPTO_VERSION];
@@ -277,7 +277,7 @@ pub fn unbox_response(session: &mut Session, response: Envelope) -> Result<()> {
     let plain_text = cipher.decrypt(Nonce::from_slice(iv.as_slice()), &message[COUNTER_SIZE..])
         .map_err(|e| RpchCryptoError::CryptographicError(e.to_string()))?;
 
-    if counter+COUNTER_GRACE_AMOUNT <= session.get_counter() {
+    if counter+COUNTER_GRACE_AMOUNT <= session.counter() {
         return Err(RpchCryptoError::VerificationFailed)
     }
 
@@ -317,7 +317,7 @@ mod tests {
             .expect("failed to box request");
 
         let data_on_wire = request_session.get_request_data().expect("no request data");
-        assert_eq!(1, request_session.get_counter());
+        assert_eq!(1, request_session.counter());
 
         let exit_own_id = Identity::new(EncodedPoint::from(exit_pk).as_bytes(), None,Some(exit_sk_bytes.as_slice().into()))
             .expect("failed to own exit node identity");
@@ -329,7 +329,7 @@ mod tests {
 
         let request_str = String::from_utf8(retrieved_data.into_vec()).expect("failed to decode response string");
         assert_eq!(request_data, request_str);
-        assert_eq!(1, response_session.get_counter());
+        assert_eq!(1, response_session.counter());
     }
 
     #[test]
@@ -352,7 +352,7 @@ mod tests {
             .expect("failed to box response");
 
         let data_on_wire = mock_exit_session.get_response_data().expect("failed to get response data");
-        assert_eq!(2, mock_exit_session.get_counter());
+        assert_eq!(2, mock_exit_session.counter());
 
         let mut mock_client_session = Session {
             req_data: None,
@@ -367,7 +367,7 @@ mod tests {
         let unboxed_response = mock_client_session.get_response_data().expect("failed to obtain response data");
 
         assert_eq!(response_data.as_bytes(), unboxed_response.as_ref());
-        assert_eq!(2, mock_client_session.get_counter())
+        assert_eq!(2, mock_client_session.counter())
     }
 
 }
@@ -399,8 +399,8 @@ pub mod wasm {
                 .ok_or("no response data".into())
         }
 
-        pub fn get_counter(&self) -> u64 {
-            self.w.get_counter()
+        pub fn counter(&self) -> u64 {
+            self.w.counter()
         }
     }
 

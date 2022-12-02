@@ -29,7 +29,7 @@ try { // NOTE that function below can throw!
 	// ... send to the Entry node!
 
 	// IMPORTANT: Update the counter in the DB (along with the Exit node identity)
-	let save_me = session.get_exit_node_counter()
+	let save_me = session.counter()
 	
 }
 catch {
@@ -65,7 +65,7 @@ try { // anything can throw
 	let unboxed_request = session.get_request_data(); // It's an Uint8Array
 		
 	// IMPORTANT: Update the counter in the DB (along with the Client identity)
-	let save_me = session.get_client_node_counter()
+	let save_me = session.counter()
 
 	// Now send that to Infura or whatever RPC provider!
 	
@@ -74,14 +74,14 @@ try { // anything can throw
 	let rpc_response = ... ; // As Uint8Array
 
 
-	box_response(session, new Envelope(rpc_response, entry_node_peer_id, our_exit_node_peer_id), client_id);
+	box_response(session, new Envelope(rpc_response, entry_node_peer_id, our_exit_node_peer_id));
 
 	let boxed_response = session.get_response_data(); // It's an Uint8Array
 	// Now send that back the the RPCh client via HOPR network!
 
 
 	// IMPORTANT: Update the counter in the DB (along with the Client identity)
-	let save_me = session.get_client_node_counter()
+	let save_me = session.counter()
 	
 
 }
@@ -107,7 +107,7 @@ try { // again, anything can throw
 
 	// Remember we also got the "client_session" Session object
 
-	unbox_response(client_session, new Envelope(boxed_rpc_response, entry_node_peer_id, exit_node_peer_id), exit_node_id);
+	unbox_response(client_session, new Envelope(boxed_rpc_response, entry_node_peer_id, exit_node_peer_id));
 
 	
 	let unboxed_rpc_response = session.get_response_data()
@@ -115,7 +115,7 @@ try { // again, anything can throw
 
 
 	// IMPORTANT: Update the counter in the DB (along with the Exit node identity)
-	let save_me = session.get_exit_node_counter()
+	let save_me = session.counter()
 
 }
 catch {
