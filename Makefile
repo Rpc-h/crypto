@@ -14,7 +14,7 @@ test: $(JS_FILES)
 
 $(JS_FILES):
 	mkdir -p $(@D)
-	wasm-pack build --target=bundler `pwd`/$(@D)/..
+	wasm-pack build --target=web `pwd`/$(@D)/..
 
 install:
 ifneq ($(PACKAGES),)
