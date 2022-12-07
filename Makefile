@@ -11,6 +11,7 @@ all: clean build test
 
 clean:
 	rm -rf `pwd`/pkg
+	cargo clean
 
 build:
 	mkdir -p `pwd`/pkg
