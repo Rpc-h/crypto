@@ -1,4 +1,6 @@
-.PHONY := clean build test all
+.PHONY := all clean build test
+
+all: clean build test
 
 clean:
 	rm -rf `pwd`/pkg
@@ -9,5 +11,3 @@ build:
 
 test:
 	cargo test --manifest-path `pwd`/Cargo.toml && wasm-pack test --node `pwd`
-
-all: clean build test
