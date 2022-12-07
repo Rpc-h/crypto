@@ -1,0 +1,13 @@
+{
+  "name": "rpch-crypto",
+  "version": "0.0.0",
+  "main": "./build/index.js",
+  "types": "./build/index.d.ts",
+  "license": "MIT",
+  "scripts": {
+    "build": "make clean && make",
+    "test": "make test"
+  },
+  "devDependencies": {},
+  "dependencies": {}
+}
