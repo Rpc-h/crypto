@@ -1,5 +1,5 @@
 # the name of our library, using scoped NPM syntax
-NAME := $(shell sed -n 's/^ *name.*=.*"\([^"]*\)".*/\1/p' Cargo.toml)
+NAME := @rpch/crypto
 # the version of our library, taken from Cargo.toml
 VERSION := $(shell sed -n 's/^ *version.*=.*"\([^"]*\)".*/\1/p' Cargo.toml)
 # which targets to build, see wasm-pack build --targets
