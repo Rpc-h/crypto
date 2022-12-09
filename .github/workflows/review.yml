@@ -44,7 +44,7 @@ jobs:
           override: true
 
       - name: Install dependencies (wasm-pack)
-        run: cargo install wasm-pack
+        run: command -v wasm-pack || cargo install wasm-pack
 
       - name: Build
         run: make build
