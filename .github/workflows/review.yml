@@ -16,6 +16,26 @@ jobs:
         with:
           fetch-depth: 2
 
+      - name: Cache Cargo
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache toolchain
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.rustup/toolchains
+            ~/.rustup/update-hashes
+            ~/.rustup/settings.toml
+          key: ${{ runner.os }}-toolchain-${{ hashFiles('rust-toolchain') }}
+
       - name: Install dependencies
         uses: actions-rs/toolchain@v1
         with:
