@@ -16,6 +16,15 @@ jobs:
         with:
           fetch-depth: 2
 
+      - name: Cache toolchain
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.rustup/toolchains
+            ~/.rustup/update-hashes
+            ~/.rustup/settings.toml
+          key: ${{ runner.os }}-toolchain-${{ hashFiles('Cargo.lock') }}
+
       - name: Cache Cargo
         uses: actions/cache@v3
         with:
@@ -25,16 +34,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Cache toolchain
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.rustup/toolchains
-            ~/.rustup/update-hashes
-            ~/.rustup/settings.toml
-          key: ${{ runner.os }}-toolchain-${{ hashFiles('rust-toolchain') }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
 
       - name: Install dependencies
         uses: actions-rs/toolchain@v1
@@ -43,6 +43,8 @@ jobs:
           toolchain: stable
           override: true
 
+      # only install wasm-pack if we don't find it in cache
+      # since it will cause an error otherwise
       - name: Install dependencies (wasm-pack)
         run: command -v wasm-pack || cargo install wasm-pack
 
