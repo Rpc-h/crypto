@@ -6,9 +6,8 @@ on:
       - Review
     types:
       - completed
-    release:
-      types:
-        - published
+    branches:
+      - "releases/**"
 
 jobs:
   on-review-failure:

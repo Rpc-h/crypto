@@ -17,7 +17,8 @@ When rebuilding, don't forget to run `make clean` first before running `make`.
 
 Currently, the publishing for this library is done manually.
 
-1. Create a PR on GitHub for the new version
-2. Update version in `Cargo.toml` to the new version
-3. Merge to main
-4. Manually create a new release and publish it
+1. Create branch based from `main` with a name like `releases/<new-version>`
+2. Update version with `<new-version>` in `Cargo.toml`
+3. Create a PR on GitHub for the new version titled `Release <new-version>`
+4. Merge to main
+5. Create a new release on GitHub and publish it
