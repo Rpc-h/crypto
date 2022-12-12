@@ -6,6 +6,9 @@ on:
       - Review
     types:
       - completed
+    # release:
+    #   types:
+    #     - published
 
 jobs:
   test-job:
@@ -13,23 +16,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: env
-# on:
-#   workflow_run:
-#     workflows: [Review]
-#     types:
-#       - completed
-#     pull_request:
-#       types: [opened, synchronize]
-#     branches: [main]
-#     release:
-#       types: [created]
-# jobs:
-#   check:
-#     name: Check
-#     runs-on: ubuntu-latest
-#     steps:
-#       - name: Check out code
-#         run: echo test
 # jobs:
 #   publish:
 #     runs-on: ubuntu-latest
