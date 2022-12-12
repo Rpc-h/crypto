@@ -47,6 +47,3 @@ build:
 
 test:
 	cargo test --manifest-path `pwd`/Cargo.toml && wasm-pack test --node `pwd`
-
-pack:
-	wasm-pack pack $(NPM_PKG_DIR)
