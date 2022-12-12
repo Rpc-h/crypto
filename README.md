@@ -21,3 +21,4 @@ When rebuilding, don't forget to run `make clean` first before running `make`.
 4. Merge to main
 5. Create a new release on GitHub titled `<new-version>` and publish it
    - Also use `create new tag` option and set it to `<new-version>`
+6. Merge PR back to `main`
