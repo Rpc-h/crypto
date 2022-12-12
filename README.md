@@ -15,7 +15,7 @@ When rebuilding, don't forget to run `make clean` first before running `make`.
 
 # Publishing a new release
 
-1. Create branch based from `main` with a name like `releases/<new-version>`
+1. Create branch based from `main` with a name like `release/<new-version>`
 2. Update version with `<new-version>` in `Cargo.toml`
 3. Create a PR on GitHub for the new version titled `Release <new-version>`
 4. Merge to main

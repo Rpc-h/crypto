@@ -7,7 +7,7 @@ on:
     types:
       - completed
     branches:
-      - "releases/**"
+      - "release/**"
 
 jobs:
   on-review-failure:
@@ -65,7 +65,7 @@ jobs:
           node-version: 16
           registry-url: "https://registry.npmjs.org"
 
-      - name: Publish package on NPM 📦
+      - name: Publish package
         run: npm publish --access public ./pkg
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
