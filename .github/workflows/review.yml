@@ -2,9 +2,12 @@ name: Review
 
 on:
   push:
-    branches: ["main"]
+    branches:
+      - main
   pull_request:
-    types: [opened, synchronize]
+    types:
+      - opened
+      - synchronize
 
 jobs:
   check:
@@ -16,6 +19,26 @@ jobs:
         with:
           fetch-depth: 2
 
+      - name: Cache toolchain
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.rustup/toolchains
+            ~/.rustup/update-hashes
+            ~/.rustup/settings.toml
+          key: ${{ runner.os }}-toolchain-${{ hashFiles('Cargo.lock') }}
+
+      - name: Cache Cargo
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+
       - name: Install dependencies
         uses: actions-rs/toolchain@v1
         with:
@@ -23,8 +46,10 @@ jobs:
           toolchain: stable
           override: true
 
+      # only install wasm-pack if we don't find it in cache
+      # since it will cause an error otherwise
       - name: Install dependencies (wasm-pack)
-        run: cargo install wasm-pack
+        run: command -v wasm-pack || cargo install wasm-pack
 
       - name: Build
         run: make build

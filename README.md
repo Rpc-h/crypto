@@ -12,3 +12,7 @@ To install & build, simply run:
 `make`
 
 When rebuilding, don't forget to run `make clean` first before running `make`.
+
+# Publishing
+
+Currently, the publishing for this library is done manually.
