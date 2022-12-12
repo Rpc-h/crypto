@@ -13,12 +13,11 @@ To install & build, simply run:
 
 When rebuilding, don't forget to run `make clean` first before running `make`.
 
-# Publishing
-
-Currently, the publishing for this library is done manually.
+# Publishing a new release
 
 1. Create branch based from `main` with a name like `releases/<new-version>`
 2. Update version with `<new-version>` in `Cargo.toml`
 3. Create a PR on GitHub for the new version titled `Release <new-version>`
 4. Merge to main
-5. Create a new release on GitHub and publish it
+5. Create a new release on GitHub titled `<new-version>` and publish it
+   - Also use `create new tag` option and set it to `<new-version>`
