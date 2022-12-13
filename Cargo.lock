@@ -377,7 +377,7 @@ dependencies = [
 
 [[package]]
 name = "rpch-crypto"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "blake2",
  "chacha20poly1305",
