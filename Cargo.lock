@@ -386,6 +386,7 @@ dependencies = [
  "getrandom",
  "hex",
  "hkdf",
+ "js-sys",
  "k256",
  "thiserror",
  "wasm-bindgen",

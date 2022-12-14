@@ -390,9 +390,13 @@ mod tests {
 
 /// Module for WASM wrappers of Rust code
 pub mod wasm {
+    use crate::crypto::CounterBound;
+
     use std::fmt::Display;
     use wasm_bindgen::prelude::*;
-    use crate::crypto::CounterBound;
+
+    #[cfg(feature = "timestamps")]
+    use js_sys::Date;
 
     pub fn as_jsvalue<T>(v: T) -> JsValue where T: Display {
         JsValue::from(v.to_string())
@@ -450,8 +454,17 @@ pub mod wasm {
         }
     }
 
+    #[cfg(not(feature = "timestamps"))]
     #[wasm_bindgen]
     pub fn box_request(request: Envelope, exit_node: &Identity, exit_request_counter: u64) -> Result<Session, JsValue> {
+        super::box_request(request.w, &exit_node.w, exit_request_counter)
+            .map(|s| Session { w: s })
+            .map_err(as_jsvalue)
+    }
+
+    #[cfg(feature = "timestamps")]
+    #[wasm_bindgen]
+    pub fn box_request(request: Envelope, exit_node: &Identity) -> Result<Session, JsValue> {
         super::box_request(request.w, &exit_node.w, exit_request_counter)
             .map(|s| Session { w: s })
             .map_err(as_jsvalue)

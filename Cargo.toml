@@ -8,13 +8,16 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [features]
-default = ["console_error_panic_hook"]
+timestamps = ["js-sys"]
+default = ["console_error_panic_hook", "timestamps"]
+
 
 [dependencies]
 blake2 = "0.10.5"
 chacha20poly1305 = "0.10.1"
 elliptic-curve = "0.12.3"
 getrandom = { version = "0.2.8", features = ["js"] }
+js-sys = { version = "0.3.60", optional = true }
 k256 = { version = "0.11.6", features = ["arithmetic", "ecdh"] }
 hex = "0.4.3"
 hkdf = "0.12.3"
