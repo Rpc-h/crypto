@@ -465,11 +465,13 @@ pub mod wasm {
     #[cfg(feature = "timestamps")]
     #[wasm_bindgen]
     pub fn box_request(request: Envelope, exit_node: &Identity) -> Result<Session, JsValue> {
-        super::box_request(request.w, &exit_node.w, exit_request_counter)
+        let current_ts = Date::now() as u64;
+        super::box_request(request.w, &exit_node.w, current_ts)
             .map(|s| Session { w: s })
             .map_err(as_jsvalue)
     }
 
+    #[cfg(not(feature = "timestamps"))]
     #[wasm_bindgen]
     pub fn unbox_request(message: Envelope, my_id: &Identity, client_request_counter: u64) -> Result<Session, JsValue> {
         super::unbox_request(message.w, &my_id.w, CounterBound {
@@ -482,17 +484,56 @@ pub mod wasm {
             .map_err(as_jsvalue)
     }
 
+    #[cfg(feature = "timestamps")]
+    #[wasm_bindgen]
+    pub fn unbox_request(message: Envelope, my_id: &Identity, client_last_request_ts: u64) -> Result<Session, JsValue> {
+        let current_ts = Date::now() as u64;
+        assert!(current_ts > client_last_request_ts);
+        super::unbox_request(message.w, &my_id.w, CounterBound {
+            lower: client_last_request_ts,
+            upper: Some(current_ts),
+            tolerance_upper: None,
+            tolerance_lower: None,
+        })
+            .map(|s| Session { w: s })
+            .map_err(as_jsvalue)
+    }
+
+    #[cfg(not(feature = "timestamps"))]
     #[wasm_bindgen]
     pub fn box_response(session: &mut Session, response: Envelope, client_response_counter: u64) ->  Result<(), JsValue> {
         super::box_response(&mut session.w, response.w, client_response_counter)
             .map_err(as_jsvalue)
     }
 
+    #[cfg(feature = "timestamps")]
+    #[wasm_bindgen]
+    pub fn box_response(session: &mut Session, response: Envelope) ->  Result<(), JsValue> {
+        let current_ts = Date::now() as u64;
+        super::box_response(&mut session.w, response.w, current_ts)
+            .map_err(as_jsvalue)
+    }
+
+    #[cfg(not(feature = "timestamps"))]
     #[wasm_bindgen]
     pub fn unbox_response(session: &mut Session, message: Envelope, exit_response_counter: u64) -> Result<(), JsValue> {
         super::unbox_response(&mut session.w, message.w, CounterBound {
             lower: exit_response_counter,
             upper: None,
+            tolerance_upper: None,
+            tolerance_lower: None,
+        })
+            .map_err(as_jsvalue)
+    }
+
+    #[cfg(feature = "timestamps")]
+    #[wasm_bindgen]
+    pub fn unbox_response(session: &mut Session, message: Envelope, exit_last_response_ts: u64) -> Result<(), JsValue> {
+        let current_ts = Date::now() as u64;
+        assert!(current_ts > exit_last_response_ts);
+        super::unbox_response(&mut session.w, message.w, CounterBound {
+            lower: exit_response_counter,
+            upper: Some(current_ts),
             tolerance_upper: None,
             tolerance_lower: None,
         })
