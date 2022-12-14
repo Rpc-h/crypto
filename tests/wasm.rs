@@ -19,6 +19,7 @@ const EXIT_NODE_PUB_KEY: &str = "03dd289a45ca51763044917d9e49051548e75b1405fc974
 const EXIT_NODE_PEER_ID: &str = "16Uiu2HAmUsJwbECMroQUC29LQZZWsYpYZx1oaM1H9DBoZHLkYn12";
 const ENTRY_NODE_PEER_ID: &str = "16Uiu2HAm35DuQk2Cvp9aLpRTD43ZubLqtbAwf242w2YmAe8FskLs";
 
+#[cfg(not(feature = "timestamps"))]
 #[wasm_bindgen_test]
 fn test_whole_flow() {
     const REQUEST_DATA: &str = "Hello world!";
@@ -99,4 +100,10 @@ fn test_whole_flow() {
         // Now the RPCh Client must update the counter
         assert_eq!(exit_resp_counter + 1,  client_session.updated_counter());
     }
+}
+
+#[cfg(feature = "timestamps")]
+#[wasm_bindgen_test]
+fn test_whole_flow() {
+
 }
