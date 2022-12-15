@@ -52,7 +52,7 @@ impl CounterBound {
         let tol_up = self.tolerance_upper.unwrap_or(0);
         let tol_lw = self.tolerance_lower.unwrap_or(0);
 
-        value+tol_lw > self.lower && (self.upper.is_none() || value-tol_up < self.upper.unwrap())
+        self.lower.abs_diff(value) < tol_lw && self.upper.map(|up| up.abs_diff(value) < tol_up).unwrap_or(true)
     }
 }
 
@@ -478,8 +478,8 @@ pub mod wasm {
             tolerance_upper: None,
             tolerance_lower: None,
         })
-            .map(|s| Session { w: s })
-            .map_err(as_jsvalue)
+        .map(|s| Session { w: s })
+        .map_err(as_jsvalue)
     }
 
     #[cfg(feature = "timestamps")]
@@ -493,8 +493,8 @@ pub mod wasm {
             tolerance_upper: None,
             tolerance_lower: None,
         })
-            .map(|s| Session { w: s })
-            .map_err(as_jsvalue)
+        .map(|s| Session { w: s })
+        .map_err(as_jsvalue)
     }
 
     #[cfg(not(feature = "timestamps"))]
@@ -521,7 +521,7 @@ pub mod wasm {
             tolerance_upper: None,
             tolerance_lower: None,
         })
-            .map_err(as_jsvalue)
+        .map_err(as_jsvalue)
     }
 
     #[cfg(feature = "timestamps")]
@@ -535,7 +535,7 @@ pub mod wasm {
             tolerance_upper: None,
             tolerance_lower: None,
         })
-            .map_err(as_jsvalue)
+        .map_err(as_jsvalue)
     }
 }
 
