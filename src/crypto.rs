@@ -532,7 +532,7 @@ pub mod wasm {
         let current_ts = Date::now() as u64;
         assert!(current_ts > exit_last_response_ts);
         super::unbox_response(&mut session.w, message.w, CounterBound {
-            lower: exit_response_counter,
+            lower: exit_last_response_ts,
             upper: Some(current_ts),
             tolerance_upper: None,
             tolerance_lower: None,
