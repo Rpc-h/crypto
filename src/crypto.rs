@@ -29,8 +29,6 @@ pub enum RpchCryptoError {
     MessageParseError,
     #[error("unsupported protocol version")]
     UnsupportedProtocolVersion,
-    #[error("invalid counter value")]
-    InvalidCounter,
     #[error("low level cryptographic error: {0}")]
     CryptographicError(String),
     #[error("not implemented")]
