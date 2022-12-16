@@ -40,19 +40,19 @@ type Result<T> = core::result::Result<T, RpchCryptoError>;
 pub struct CounterBound {
     lower: CounterType,
     upper: Option<CounterType>,
-    tolerance_upper: Option<CounterType>,
-    tolerance_lower: Option<CounterType>
+    tolerance: Option<CounterType>
 }
 
 impl CounterBound {
     pub fn validate(&self, value: CounterType) -> bool {
         assert!(self.lower < self.upper.unwrap_or(self.lower + 1));
-        assert!(self.tolerance_lower.unwrap_or(0) < self.tolerance_upper.unwrap_or(1));
 
-        let tol_up = self.tolerance_upper.unwrap_or(0);
-        let tol_lw = self.tolerance_lower.unwrap_or(0);
+        let tol = self.tolerance.unwrap_or(0) as i128;
 
-        self.lower.abs_diff(value) < tol_lw && self.upper.map(|up| up.abs_diff(value) < tol_up).unwrap_or(true)
+        let lower_diff = value as i128 - self.lower as i128;
+        let upper_diff = self.upper.unwrap_or(value) as i128 - value as i128;
+
+        lower_diff >= -tol && upper_diff >= -tol
     }
 }
 
@@ -300,10 +300,60 @@ pub fn unbox_response(session: &mut Session, response: Envelope, exit_response_c
 /// Unit tests of pure Rust code
 #[cfg(test)]
 mod tests {
+
     use std::str::FromStr;
     use super::*;
 
     use k256::{NonZeroScalar, PublicKey};
+
+    #[test]
+    fn test_counter_bound_lower() {
+        let t = CounterBound {
+            lower: 10,
+            upper: None,
+            tolerance: None,
+        };
+
+        assert!(t.validate(11));
+        assert!(t.validate(10));
+        assert!(!t.validate(9));
+    }
+
+    #[test]
+    fn test_counter_bound_upper() {
+        let t = CounterBound {
+            lower: 10,
+            upper: Some(15),
+            tolerance: None,
+        };
+
+        assert!(t.validate(11));
+        assert!(t.validate(10));
+        assert!(!t.validate(9));
+
+        assert!(t.validate(14));
+        assert!(t.validate(15));
+        assert!(!t.validate(16));
+    }
+
+    #[test]
+    fn test_counter_bound_lower_tolerance() {
+        let t = CounterBound {
+            lower: 10,
+            upper: Some(15),
+            tolerance: Some(1),
+        };
+
+        assert!(t.validate(11));
+        assert!(t.validate(9));
+        assert!(t.validate(10));
+        assert!(!t.validate(8));
+
+        assert!(t.validate(14));
+        assert!(t.validate(15));
+        assert!(t.validate(16));
+        assert!(!t.validate(17));
+    }
 
     const EXIT_NODE_SK: &str = "06EF2A621EB9DF81F7D6A8F7A2499B9E670613F757648DC3258640767EBD7E0A";
 
@@ -333,7 +383,7 @@ mod tests {
             .expect("failed to own exit node identity");
 
         let response_session = unbox_request(Envelope::new(data_on_wire.as_ref(), ENTRY_NODE, EXIT_NODE), &exit_own_id,
-                                             CounterBound { lower: request_counter, upper: None, tolerance_upper: None, tolerance_lower: None } )
+                                             CounterBound { lower: request_counter, upper: None, tolerance: None } )
             .expect("failed to unbox request");
 
         let retrieved_data = response_session.get_request_data().expect("no response data");
@@ -375,7 +425,7 @@ mod tests {
         };
 
         unbox_response(&mut mock_client_session, Envelope::new(data_on_wire.as_ref(), ENTRY_NODE, EXIT_NODE),
-                       CounterBound { lower: resp_counter, upper: None, tolerance_upper: None, tolerance_lower: None })
+                       CounterBound { lower: resp_counter, upper: None, tolerance: None })
             .expect("failed to unbox response");
 
         let unboxed_response = mock_client_session.get_response_data().expect("failed to obtain response data");
@@ -490,8 +540,7 @@ pub mod wasm {
         super::unbox_request(message.w, &my_id.w, CounterBound {
             lower: client_last_request_ts,
             upper: Some(current_ts),
-            tolerance_upper: None,
-            tolerance_lower: None,
+            tolerance: None
         })
         .map(|s| Session { w: s })
         .map_err(as_jsvalue)
@@ -532,8 +581,7 @@ pub mod wasm {
         super::unbox_response(&mut session.w, message.w, CounterBound {
             lower: exit_last_response_ts,
             upper: Some(current_ts),
-            tolerance_upper: None,
-            tolerance_lower: None,
+            tolerance: None
         })
         .map_err(as_jsvalue)
     }
