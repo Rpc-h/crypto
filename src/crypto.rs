@@ -8,15 +8,18 @@ use k256::ecdh::SharedSecret;
 
 use thiserror::Error;
 
+/// Current version of the protocol.
 pub const RPCH_CRYPTO_VERSION: u8 = 0x11;
 
+// Private constants
+type CounterType = u64;
 const PUBLIC_KEYSIZE_ENCODED: usize = 33;
 const CIPHER_KEYSIZE: usize = 32;
 const CIPHER_IVSIZE: usize = 12;
-
-type CounterType = u64;
 const COUNTER_SIZE: usize = std::mem::size_of::<CounterType>();
 
+/// Contains all error messages that could be returned by
+/// the protocol functions.
 #[derive(Error, Debug)]
 pub enum RpchCryptoError {
     #[error("session is invalid")]
@@ -37,6 +40,8 @@ pub enum RpchCryptoError {
 
 type Result<T> = core::result::Result<T, RpchCryptoError>;
 
+/// Represent an inclusive counter bound for verification
+/// against replay attacks.
 pub struct CounterBound {
     lower: CounterType,
     upper: Option<CounterType>,
@@ -58,6 +63,7 @@ impl CounterBound {
     }
 }
 
+/// Represents a request-response session.
 pub struct Session {
     req_data: Option<Box<[u8]>>,
     resp_data: Option<Box<[u8]>>,
@@ -80,6 +86,9 @@ impl Session {
     }
 }
 
+/// Identifies a party in the protocol.
+/// If the party is remote, only the public key is populated.
+/// If the party is local, also the secret key is populated.
 pub struct Identity {
     pubkey: PublicKey,
     secret_key: Option<SecretKey>
@@ -103,6 +112,8 @@ impl Identity {
     }
 }
 
+/// Wrapper for the request/response data
+/// along with the peer ID of the HOPR entry node and exit node
 pub struct Envelope {
     message: Box<[u8]>,
     entry_peer_id: String,
@@ -160,6 +171,10 @@ fn initialize_cipher(shared_presecret: &SharedSecret, counter: u64, salt: &[u8],
 
 
 /// Called by the RPCh client
+/// Takes enveloped request data, the identity of the RPCh Exit Node and Request counter for such
+/// RPCh Exit node and then encrypts and authenticates the data.
+/// The encrypted data and new counter value to be persisted is returned in the resulting session.
+/// The counter can be also represented by a UTC timestamp.
 pub fn box_request(request: Envelope, exit_node: &Identity, exit_request_counter: CounterType) -> Result<Session> {
     // Generate random ephemeral key
     let ephemeral_key = EphemeralSecret::random(&mut OsRng);
@@ -194,7 +209,11 @@ pub fn box_request(request: Envelope, exit_node: &Identity, exit_request_counter
     })
 }
 
-/// Called by the Exit node
+/// Called by the RPCh Exit Node
+/// Takes enveloped encrypted data, the local identity of the RPCh Exit Node and Request counter for
+/// RPCh Client node associated with the request and then decrypts and verifies the data.
+/// The decrypted data and new counter value to be persisted is returned in the resulting session.
+/// The counter can be also represented by a UTC timestamp.
 pub fn unbox_request(request: Envelope, my_id: &Identity, client_request_counter: CounterBound) -> Result<Session> {
     let message = request.message();
 
@@ -239,7 +258,11 @@ pub fn unbox_request(request: Envelope, my_id: &Identity, client_request_counter
 
 const RESPONSE_TAG: &str = "resp";
 
-/// Called by the Exit node
+/// Called by the RPCh Exit Node
+/// Takes enveloped response data, the request session obtained by unbox_request and Response counter for the associated
+/// RPCh Client node and then encrypts and authenticates the data.
+/// The encrypted data and new counter value to be persisted is returned in the resulting session.
+/// The counter can be also represented by a UTC timestamp.
 pub fn box_response(session: &mut Session, response: Envelope, client_response_counter: CounterType) ->  Result<()> {
     let shared_presecret = session.shared_presecret.as_ref().ok_or(RpchCryptoError::InvalidSession)?;
 
@@ -268,7 +291,11 @@ pub fn box_response(session: &mut Session, response: Envelope, client_response_c
     Ok(())
 }
 
-/// Called by the RPCh Client
+/// Called by the RPCh Client Node
+/// Takes enveloped encrypted data, the associated session returned by box_request and Request counter for
+/// RPCh Exit node associated with the response and then decrypts and verifies the data.
+/// The decrypted data and new counter value to be persisted is returned in the resulting session.
+/// The counter can be also represented by a UTC timestamp.
 pub fn unbox_response(session: &mut Session, response: Envelope, exit_response_counter: CounterBound) -> Result<()> {
     let shared_presecret = session.shared_presecret.as_ref().ok_or(RpchCryptoError::InvalidSession)?;
 
