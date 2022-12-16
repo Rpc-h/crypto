@@ -49,6 +49,8 @@ impl CounterBound {
 
         let tol = self.tolerance.unwrap_or(0) as i128;
 
+        assert!(self.upper.is_none() || tol < self.upper.unwrap() as i128 - self.lower as i128);
+
         let lower_diff = value as i128 - self.lower as i128;
         let upper_diff = self.upper.unwrap_or(value) as i128 - value as i128;
 
