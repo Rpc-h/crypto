@@ -3,7 +3,7 @@ NAME := @rpch/crypto
 # the version of our library, taken from Cargo.toml
 VERSION := $(shell sed -n 's/^ *version.*=.*"\([^"]*\)".*/\1/p' Cargo.toml)
 # which targets to build, see wasm-pack build --targets
-TARGETS := nodejs web
+TARGETS := nodejs web no-modules
 # the directory of the folder we will be publishing
 NPM_PKG_DIR := `pwd`/pkg
 # the package.json of our package
