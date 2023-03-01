@@ -566,11 +566,16 @@ pub mod wasm {
     pub fn unbox_request(message: Envelope, my_id: &Identity, client_last_request_ts: u64) -> Result<Session, JsValue> {
         let current_ts = Date::now() as u64;
         assert!(current_ts > client_last_request_ts);
-        super::unbox_request(message.w, &my_id.w, CounterBound {
-            lower: client_last_request_ts,
-            upper: Some(current_ts),
-            tolerance: None
-        })
+        super::unbox_request(
+            message.w,
+            &my_id.w,
+            CounterBound {
+                lower: client_last_request_ts,
+                upper: Some(current_ts),
+                // set default tolerance to 30sec
+                tolerance: Some(30000u64),
+            },
+        )
         .map(|s| Session { w: s })
         .map_err(as_jsvalue)
     }
@@ -607,11 +612,16 @@ pub mod wasm {
     pub fn unbox_response(session: &mut Session, message: Envelope, exit_last_response_ts: u64) -> Result<(), JsValue> {
         let current_ts = Date::now() as u64;
         assert!(current_ts > exit_last_response_ts);
-        super::unbox_response(&mut session.w, message.w, CounterBound {
-            lower: exit_last_response_ts,
-            upper: Some(current_ts),
-            tolerance: None
-        })
+        super::unbox_response(
+            &mut session.w,
+            message.w,
+            CounterBound {
+                lower: exit_last_response_ts,
+                upper: Some(current_ts),
+                // set default tolerance to 30sec
+                tolerance: Some(30000u64),
+            },
+        )
         .map_err(as_jsvalue)
     }
 }
