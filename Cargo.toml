@@ -11,7 +11,6 @@ crate-type = ["cdylib", "rlib"]
 timestamps = ["js-sys"]
 default = ["console_error_panic_hook", "timestamps"]
 
-
 [dependencies]
 blake2 = "0.10.5"
 chacha20poly1305 = "0.10.1"
