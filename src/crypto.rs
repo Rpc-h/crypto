@@ -50,15 +50,7 @@ pub struct CounterBound {
 
 impl CounterBound {
     pub fn validate(&self, value: CounterType) -> bool {
-        assert!(self.lower < self.upper.unwrap_or(self.lower + 1));
-
         let tol = self.tolerance.unwrap_or(0) as i128;
-
-        // FIXME: For now we do not enforce a maximum tolerance. However, it could be set
-        // dynamically in the wasm wrapper instead of statically.
-        // let bounds_diff = self.upper.unwrap_or(self.lower + 1) as i128 - self.lower as i128;
-        // assert!(self.upper.is_none() || tol < bounds_diff);
-
         let lower_diff = value as i128 - self.lower as i128;
         let upper_diff = self.upper.unwrap_or(value) as i128 - value as i128;
 
@@ -568,7 +560,6 @@ pub mod wasm {
     #[wasm_bindgen]
     pub fn unbox_request(message: Envelope, my_id: &Identity, client_last_request_ts: u64) -> Result<Session, JsValue> {
         let current_ts = Date::now() as u64;
-        assert!(current_ts > client_last_request_ts);
         super::unbox_request(
             message.w,
             &my_id.w,
@@ -614,7 +605,6 @@ pub mod wasm {
     #[wasm_bindgen]
     pub fn unbox_response(session: &mut Session, message: Envelope, exit_last_response_ts: u64) -> Result<(), JsValue> {
         let current_ts = Date::now() as u64;
-        assert!(current_ts > exit_last_response_ts);
         super::unbox_response(
             &mut session.w,
             message.w,
