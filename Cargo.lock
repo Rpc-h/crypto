@@ -115,24 +115,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "crypto"
-version = "0.3.3"
-dependencies = [
- "blake2",
- "chacha20poly1305",
- "console_error_panic_hook",
- "elliptic-curve",
- "getrandom",
- "hex",
- "hkdf",
- "js-sys",
- "k256",
- "thiserror",
- "wasm-bindgen",
- "wasm-bindgen-test",
-]
-
-[[package]]
 name = "crypto-bigint"
 version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -391,6 +373,24 @@ dependencies = [
  "crypto-bigint",
  "hmac",
  "zeroize",
+]
+
+[[package]]
+name = "rpch-crypto"
+version = "0.3.3"
+dependencies = [
+ "blake2",
+ "chacha20poly1305",
+ "console_error_panic_hook",
+ "elliptic-curve",
+ "getrandom",
+ "hex",
+ "hkdf",
+ "js-sys",
+ "k256",
+ "thiserror",
+ "wasm-bindgen",
+ "wasm-bindgen-test",
 ]
 
 [[package]]
