@@ -13,7 +13,7 @@ OUTPUT_DIR := `pwd`/build
 # 3. update generated "package.json" with a name prefixed with the target of the build
 # $(1) = target
 define build_for_target
-	wasm-pack build --target=bundler --out-dir $(OUTPUT_DIR)/$(1) --out-name index `pwd` --scope rpch;
+	wasm-pack build --target=$(1) --out-dir $(OUTPUT_DIR)/$(1) --out-name index `pwd` --scope rpch;
 	@if [ "$(1)" = "$(RECOMMENDED_TARGET)" ]; then\
 		jq -r '.main = "index.js" | .name = "@rpch/crypto"' $(OUTPUT_DIR)/$(1)/package.json > $(OUTPUT_DIR)/$(1)/package.json.tmp;\
     else\
