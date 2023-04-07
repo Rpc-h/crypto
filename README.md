@@ -5,12 +5,15 @@ The implementation is WASM compatible and also exposes a TypeScript API via `was
 
 ## Distributions
 
-| target     | usage             | description                                                                                                                           | example |
-| ---------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| web        | Native in browser | Can be natively imported as an ES module in a browser, but must be manually instantiated and loaded.                                  |
-| nodejs     | nodeJS            | Uses CommonJS modules, for use with a require statement.                                                                              |
-| no-modules | Native in browser | Same as web, except the JS is included on a page and modifies global state, and doesn't support as many wasm-bindgen features as web. |
-| bundler    | bundler           | Suitable for interoperation with a Bundler like Webpack.                                                                              |
+| target  | usage                 | description                                                  |
+| ------- | --------------------- | ------------------------------------------------------------ |
+| bundler | bundler (ex: webpack) | (Recommended) Suitable for loading in bundlers like Webpack. |
+| web     | Native in browser     | Directly loadable in a web browser.                          |
+| nodejs  | nodeJS                | Loadable via `require` as a Node.js module.                  |
+
+The recommended target is `bundler`. Assumes a model where the wasm module itself is natively an ES module. This model, however, is not natively implemented in any JS implementation at this time. As a result, to consume the default output of wasm-bindgen you will need a bundler of some form.
+The choice of this default output was done to reflect the trends of the JS ecosystem. While tools other than bundlers don't support wasm files as native ES modules today they're all very much likely to in the future!
+Currently the only known bundler known to be fully compatible with wasm-bindgen is webpack. Most examples use webpack, and you can check out the hello world example online to see the details of webpack configuration necessary.
 
 ## Building
 
