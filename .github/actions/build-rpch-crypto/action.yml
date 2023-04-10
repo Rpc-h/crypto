@@ -35,6 +35,8 @@ runs:
     # since it will cause an error otherwise
     - name: Install dependencies (wasm-pack)
       run: command -v wasm-pack || cargo install wasm-pack
+      shell: bash
 
     - name: Build
       run: make build
+      shell: bash
