@@ -2,57 +2,54 @@ name: Review
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
-    types:
-      - opened
-      - synchronize
+    types: [opened, synchronize]
+
+concurrency:
+  # find the branch name for 'pull_request' or on 'push' events
+  group: ${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 
 jobs:
-  check:
-    name: Check
+  review:
+    name: Review
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
         uses: actions/checkout@v3
-        with:
-          fetch-depth: 2
-
-      - name: Cache toolchain
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.rustup/toolchains
-            ~/.rustup/update-hashes
-            ~/.rustup/settings.toml
-          key: ${{ runner.os }}-toolchain-${{ hashFiles('Cargo.lock') }}
-
-      - name: Cache Cargo
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
-
-      - name: Install dependencies
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-
-      # only install wasm-pack if we don't find it in cache
-      # since it will cause an error otherwise
-      - name: Install dependencies (wasm-pack)
-        run: command -v wasm-pack || cargo install wasm-pack
 
       - name: Build
-        run: make build
+        uses: ./.github/actions/build-rpch-crypto
 
       - name: Run tests
         run: make test
+
+  publish:
+    if: startsWith(github.head_ref, 'release/')
+    needs: review
+    name: Publish NPM packages
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: ["bundler", "nodejs", "web"]
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Build
+        uses: ./.github/actions/build-rpch-crypto
+
+      - name: Setup Node.js environment
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Publish package
+        run: npm publish --access public ./build/${{ matrix.target }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
