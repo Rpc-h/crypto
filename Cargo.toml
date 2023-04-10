@@ -1,6 +1,9 @@
 [package]
 name = "rpch-crypto"
+description = "This crate implements the RPCh Crypto protocol as defined by the specs in the parent repository. The implementation is WASM compatible and also exposes a TypeScript API via wasm-bindgen."
 version = "0.3.3"
+license = "LGPL-3.0"
+repository = "https://github.com/rpc-h/crypto"
 authors = ["HOPR Association <tech@hoprnet.org>"]
 edition = "2021"
 
@@ -21,9 +24,7 @@ k256 = { version = "0.11.6", features = ["arithmetic", "ecdh"] }
 hex = "0.4.3"
 hkdf = "0.12.3"
 thiserror = "1.0.37"
-
 wasm-bindgen = "0.2.83"
-
 console_error_panic_hook = { version = "0.1.6", optional = true }
 #wee_alloc = { version = "0.4.5", optional = true }
 

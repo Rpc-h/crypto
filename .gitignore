@@ -1,5 +1,5 @@
 /target
 **/*.rs.bk
 bin/
-pkg/
+build/
 wasm-pack.log
