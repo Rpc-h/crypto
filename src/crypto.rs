@@ -140,20 +140,20 @@ impl Envelope {
 
 const REQUEST_TAG: &str = "req";
 
-fn initialize_cipher(shared_presecret: &SharedSecret, counter: u64, salt: &[u8], start_index: usize) -> Result<(ChaCha20Poly1305, Vec<u8>)> {
+fn initialize_cipher(shared_presecret: &SharedSecret, counter: u64, salt: &[u8], start_index: u8) -> Result<(ChaCha20Poly1305, Vec<u8>)> {
     let kdf = shared_presecret.extract::<Blake2s256>(Some(salt));
 
     let mut key = [0u8; CIPHER_KEYSIZE];
     let mut ivm = [0u8; CIPHER_IVSIZE - COUNTER_SIZE];
-    for _ in 0..start_index+1 {
-        // Generate the encryption key using the KDF
-        kdf.expand(&[0u8; 1], &mut key)
-            .map_err(|e| RpchCryptoError::CryptographicError(e.to_string()))?;
 
-        // Generate the first part of the IV from shared pre-secret
-        kdf.expand(&[0u8; 1], &mut ivm)
-            .map_err(|e| RpchCryptoError::CryptographicError(e.to_string()))?;
-    }
+    // Generate the encryption key using the KDF
+    kdf.expand(&[start_index; 1], &mut key)
+        .map_err(|e| RpchCryptoError::CryptographicError(e.to_string()))?;
+
+    // Generate the first part of the IV from shared pre-secret
+    kdf.expand(&[start_index + 1; 1], &mut ivm)
+        .map_err(|e| RpchCryptoError::CryptographicError(e.to_string()))?;
+
 
     // Construct the final IV using the generated prefix and the new counter
     let mut iv = Vec::from(ivm);
@@ -268,7 +268,7 @@ pub fn box_response(session: &mut Session, response: Envelope, client_response_c
     let mut salt = vec![RPCH_CRYPTO_VERSION];
     salt.extend_from_slice(response.entry_peer_id.as_bytes());
     salt.extend_from_slice(RESPONSE_TAG.as_bytes());
-    let (cipher, iv) = initialize_cipher(&shared_presecret, new_counter, salt.as_slice(), 1)?;
+    let (cipher, iv) = initialize_cipher(&shared_presecret, new_counter, salt.as_slice(), 2)?;
 
     // Encrypt and authenticate the request
     let cipher_text = cipher.encrypt(Nonce::from_slice(iv.as_slice()), response.message.as_ref())
@@ -304,7 +304,7 @@ pub fn unbox_response(session: &mut Session, response: Envelope, exit_response_c
     let mut salt = vec![RPCH_CRYPTO_VERSION];
     salt.extend_from_slice(response.entry_peer_id.as_bytes());
     salt.extend_from_slice(RESPONSE_TAG.as_bytes());
-    let (cipher, iv ) = initialize_cipher(shared_presecret, counter, salt.as_slice(), 1)?;
+    let (cipher, iv ) = initialize_cipher(shared_presecret, counter, salt.as_slice(), 2)?;
 
     // Decrypt the response
     let plain_text = cipher.decrypt(Nonce::from_slice(iv.as_slice()), &message[COUNTER_SIZE..])
