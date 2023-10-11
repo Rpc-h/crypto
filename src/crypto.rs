@@ -9,7 +9,7 @@ use k256::ecdh::SharedSecret;
 use thiserror::Error;
 
 /// Current version of the protocol.
-pub const RPCH_CRYPTO_VERSION: u8 = 0x11;
+pub const RPCH_CRYPTO_VERSION: u8 = 0x12;
 
 // Private constants
 type CounterType = u64;
