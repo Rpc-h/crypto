@@ -3,7 +3,7 @@ use chacha20poly1305::{ChaCha20Poly1305, KeyInit, Nonce};
 use chacha20poly1305::aead::Aead;
 use elliptic_curve::ecdh::diffie_hellman;
 use k256::{PublicKey, SecretKey, ecdh::EphemeralSecret, EncodedPoint};
-use elliptic_curve::rand_core::OsRng;
+use elliptic_curve::rand_core::{CryptoRng, OsRng, RngCore};
 use k256::ecdh::SharedSecret;
 
 use thiserror::Error;
@@ -154,7 +154,6 @@ fn initialize_cipher(shared_presecret: &SharedSecret, counter: u64, salt: &[u8],
     kdf.expand(&[start_index + 1; 1], &mut ivm)
         .map_err(|e| RpchCryptoError::CryptographicError(e.to_string()))?;
 
-
     // Construct the final IV using the generated prefix and the new counter
     let mut iv = Vec::from(ivm);
     iv.extend_from_slice(&counter.to_be_bytes());
@@ -164,15 +163,18 @@ fn initialize_cipher(shared_presecret: &SharedSecret, counter: u64, salt: &[u8],
         .map_err(|e| RpchCryptoError::CryptographicError(e.to_string()))?, iv))
 }
 
-
 /// Called by the RPCh client
 /// Takes enveloped request data, the identity of the RPCh Exit Node and Request counter for such
 /// RPCh Exit node and then encrypts and authenticates the data.
 /// The encrypted data and new counter value to be persisted is returned in the resulting session.
 /// The counter can be also represented by a UTC timestamp.
 pub fn box_request(request: Envelope, exit_node: &Identity, exit_request_counter: CounterType) -> Result<Session> {
+    box_request_int(request, exit_node, exit_request_counter, &mut OsRng)
+}
+
+pub(crate) fn box_request_int(request: Envelope, exit_node: &Identity, exit_request_counter: CounterType, rng: impl CryptoRng + RngCore) -> Result<Session> {
     // Generate random ephemeral key
-    let ephemeral_key = EphemeralSecret::random(&mut OsRng);
+    let ephemeral_key = EphemeralSecret::random(rng);
 
     // Perform the Diffie-Hellman step using the Exit node's public key & initialize the KDF using the shared pre-secret
     let shared_presecret = ephemeral_key.diffie_hellman(&exit_node.pubkey);
@@ -380,13 +382,72 @@ mod tests {
     }
 
     const EXIT_NODE_SK: &str = "06EF2A621EB9DF81F7D6A8F7A2499B9E670613F757648DC3258640767EBD7E0A";
-
     const EXIT_NODE: &str = "16Uiu2HAmUsJwbECMroQUC29LQZZWsYpYZx1oaM1H9DBoZHLkYn12";
     const ENTRY_NODE: &str = "16Uiu2HAm35DuQk2Cvp9aLpRTD43ZubLqtbAwf242w2YmAe8FskLs";
 
+    const TEST_EPHEMERAL_PRIVATE_KEY: &str = "492057cf93e99b31d2a85bc5e98a9c3aa0021feec52c227cc8170e8f7d047775";
+    const TEST_VECTOR_REQUEST_INPUT: &str = "e1afa1e0a0a3e482bce0be80e39ca4e5a0a4e681b3d1a0e19ca8c390d7bbe380b9e69aa0e7a982ceb8cf92e4bebce7b0a5e589abe184b4c7b0e28ca0e38786e69f92e2a7a8c288e287b8c3b9e68587e19ba0e0a580e4baa439e4a8b44363d0a5e6968ac9a0e28580d297e294a8e4ad83e3ada0e2b6b2e399ace2a192e1a58ee380a7e6a58ee0aaaee680bae680aee280b5e69a89e29596e5a0bae495ace6beaee480a6e6a0a2e794a476e7b188e3a4bbe1b6b6e280a4e69a8050e480a1e3bab9e280a020";
+    const TEST_VECTOR_REQUEST_OUTPUT: &str = "120239d1bc2291826eaed86567d225cf243ebc637275e0a5aedb0d6b1dc82136a38e000001856a69d98192302d2c0a27a012e61e086fcac4977d61805617aace48a42cc6d37d4cf7276a39c0cc81de4da122d1ead7c0ae047ae727ca788c17137455caf712265e84edeca71e5cf80119d30e09e55a9d4546178cbc254004ffa780166f154516939033e8476bf6aa332706f604289c3e22fb5a9f93dc312b9d0981c44cc48344e4f8db3e6b2a9b3d0365d5b4a96e51eae57709db62f72ce4768e88f054f8634655e6938d05e02179e308b579f352ef039e5e3f56925c03f05058b305f6f792a7e6a31ac3faace94fa667ea5254bc6937d6c7f2cc3cb4f134";
+
+    const TEST_VECTOR_RESPONSE_INPUT: &str = "e1afa1e0a0b3e485ace0b480dcb0e19d88cb92e48496c7b9e48ca3e0b0b2c2b8c7b0c2812dd0a1e198a0e4b490da8ae59693e68da0e197a0e0b6a0e19d9de490a1e780b1e4b5b8e48193e1bca0e18790e4a0a0e5bd89e280a020";
+    const TEST_VECTOR_RESPONSE_OUTPUT: &str = "000001856a69d9816d0a1e6ed9cfe3b95125d3ae02400ea86d869fce21b7e6241d22dbe911182c51345c8eb13ebc9c5cf9989e7e0f9cac2cd2a3026cc06d6fca6f2df1b45ee17f94543194b0f7f285cf261348b729fd78d6bb9a2021ca947b49f3ccbc36d43eea6efef2c4e25c205bb1286d";
+    const TEST_COUNTER: u64 = 1672527600000;
+
+    struct TestRng;
+
+    impl CryptoRng for TestRng {}
+
+    impl RngCore for TestRng {
+        fn next_u32(&mut self) -> u32 {
+            unimplemented!()
+        }
+
+        fn next_u64(&mut self) -> u64 {
+            unimplemented!()
+        }
+
+        fn fill_bytes(&mut self, dest: &mut [u8]) {
+            self.try_fill_bytes(dest).unwrap()
+        }
+
+        fn try_fill_bytes(&mut self, dest: &mut [u8]) -> std::result::Result<(), elliptic_curve::rand_core::Error> {
+            dest.copy_from_slice(&hex::decode(TEST_EPHEMERAL_PRIVATE_KEY).unwrap());
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn test_request_test_vector() {
+        let exit_sk = NonZeroScalar::from_str(EXIT_NODE_SK).unwrap();
+        let exit_sk_bytes = exit_sk.to_bytes();
+        let exit_pk = PublicKey::from_secret_scalar(&exit_sk);
+
+        let exit_id = Identity::new(EncodedPoint::from(exit_pk).as_bytes(), None)
+            .expect("failed to create exit node identity");
+
+        let request_session = box_request_int(Envelope::new(&hex::decode(TEST_VECTOR_REQUEST_INPUT).unwrap(), ENTRY_NODE, EXIT_NODE), &exit_id, TEST_COUNTER, &mut TestRng)
+            .expect("failed to box request");
+
+        let data_on_wire = request_session.get_request_data().expect("no request data");
+        assert_eq!(TEST_COUNTER + 1, request_session.updated_counter());
+        assert_eq!(TEST_VECTOR_REQUEST_OUTPUT, hex::encode(&data_on_wire));
+
+        let exit_own_id = Identity::new(EncodedPoint::from(exit_pk).as_bytes(), Some(exit_sk_bytes.as_slice().into()))
+            .expect("failed to own exit node identity");
+
+        let response_session = unbox_request(Envelope::new(data_on_wire.as_ref(), ENTRY_NODE, EXIT_NODE), &exit_own_id,
+                                             CounterBound { lower: TEST_COUNTER, upper: None, tolerance: None } )
+            .expect("failed to unbox request");
+
+        let retrieved_data = response_session.get_request_data().expect("no response data");
+
+        let request_str = hex::encode(retrieved_data.into_vec());
+        assert_eq!(TEST_VECTOR_REQUEST_INPUT, request_str);
+        assert_eq!(TEST_COUNTER + 1, response_session.updated_counter());
+    }
+
     #[test]
     fn test_request() {
-
         let exit_sk = NonZeroScalar::from_str(EXIT_NODE_SK).unwrap();
         let exit_sk_bytes = exit_sk.to_bytes();
         let exit_pk = PublicKey::from_secret_scalar(&exit_sk);
@@ -415,6 +476,44 @@ mod tests {
         let request_str = String::from_utf8(retrieved_data.into_vec()).expect("failed to decode response string");
         assert_eq!(request_data, request_str);
         assert_eq!(request_counter + 1, response_session.updated_counter());
+    }
+
+    #[test]
+    fn test_response_test_vector() {
+        let exit_sk = NonZeroScalar::from_str(EXIT_NODE_SK).unwrap();
+        let exit_pk = PublicKey::from_secret_scalar(&exit_sk);
+
+        let ss = EphemeralSecret::random(&mut TestRng);
+
+        let mut mock_exit_session = Session {
+            req_data: None,
+            resp_data: None,
+            counter: 1,
+            shared_presecret: Some(ss.diffie_hellman(&exit_pk))
+        };
+
+        box_response(&mut mock_exit_session, Envelope::new(&hex::decode(TEST_VECTOR_RESPONSE_INPUT).unwrap(), ENTRY_NODE, EXIT_NODE), TEST_COUNTER)
+            .expect("failed to box response");
+
+        let data_on_wire = mock_exit_session.get_response_data().expect("failed to get response data");
+        assert_eq!(TEST_COUNTER + 1, mock_exit_session.updated_counter());
+        assert_eq!(TEST_VECTOR_RESPONSE_OUTPUT, hex::encode(&data_on_wire));
+
+        let mut mock_client_session = Session {
+            req_data: None,
+            resp_data: None,
+            counter: 1,
+            shared_presecret: Some(ss.diffie_hellman(&exit_pk))
+        };
+
+        unbox_response(&mut mock_client_session, Envelope::new(data_on_wire.as_ref(), ENTRY_NODE, EXIT_NODE),
+                       CounterBound { lower: TEST_COUNTER, upper: None, tolerance: None })
+            .expect("failed to unbox response");
+
+        let unboxed_response = mock_client_session.get_response_data().expect("failed to obtain response data");
+
+        assert_eq!(TEST_VECTOR_RESPONSE_INPUT, hex::encode(unboxed_response));
+        assert_eq!(TEST_COUNTER + 1, mock_client_session.updated_counter())
     }
 
     #[test]
